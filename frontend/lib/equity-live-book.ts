@@ -3,6 +3,10 @@ import { buildPmReviewPacket } from "@/lib/equity-pm-review";
 import { formatThesisRecommendation } from "@/lib/equity-project";
 import { positionPnl } from "@/lib/equity-trade-desk";
 import type {
+  FullAutoRun,
+  ThesisRecord,
+} from "@/types/full-auto";
+import type {
   EquityPaperPosition,
   EquityProject,
   ShellSession,
@@ -25,6 +29,9 @@ export interface LiveBookPositionRow {
   sector: string;
   side: string;
   status: EquityPaperPosition["status"];
+  sourceLabel?: "Assist" | "Full Auto";
+  fullAutoRunId?: string;
+  fullAutoThesisRecordId?: string;
   entryPrice: number;
   currentPrice: number;
   size: number;
@@ -46,6 +53,9 @@ export interface LiveBookThesisRow {
   conviction: number | null;
   stage: LiveBookStage;
   status: string;
+  sourceLabel?: "Assist" | "Full Auto";
+  fullAutoRunId?: string;
+  fullAutoThesisRecordId?: string;
   oneLineThesis: string;
 }
 
@@ -143,6 +153,7 @@ const buildPositionRow = (
   return {
     sessionId: session.id,
     sessionTitle: session.title,
+    sourceLabel: "Assist",
     ticker: position.ticker,
     companyName: company.companyName,
     sector: company.sector,
@@ -170,6 +181,7 @@ const buildThesisRow = (
   const stage = stageFor(project, session);
   return {
     sessionId: session.id,
+    sourceLabel: "Assist",
     ticker: project.ticker,
     companyName: company.companyName,
     sector: company.sector,
@@ -183,6 +195,57 @@ const buildThesisRow = (
     ),
   };
 };
+
+const buildFullAutoPositionRow = (
+  position: FullAutoRun["paperPositions"][number],
+  record: ThesisRecord | undefined,
+  run: FullAutoRun,
+): LiveBookPositionRow => {
+  const company = companyFor(position.ticker);
+  return {
+    sessionId: `full-auto:${run.id}:${position.id}`,
+    sessionTitle: "Full Auto",
+    sourceLabel: "Full Auto",
+    fullAutoRunId: run.id,
+    fullAutoThesisRecordId: position.thesisRecordId,
+    ticker: position.ticker,
+    companyName: record?.companyName ?? company.companyName,
+    sector: record?.sector ?? company.sector,
+    side: position.side.toUpperCase(),
+    status: position.status,
+    entryPrice: position.entryPrice,
+    currentPrice: position.currentPrice,
+    size: position.size,
+    pnl: position.pnl,
+    returnPct: position.returnPct,
+    thesisStatus: position.thesisStatus,
+    nextAction: position.nextAction,
+    nextCatalyst: record?.catalysts[0] ?? "Next replay event",
+    rationale: position.rationale,
+    openedAt: position.openedAt,
+  };
+};
+
+const buildFullAutoThesisRow = (
+  record: ThesisRecord,
+  run: FullAutoRun,
+): LiveBookThesisRow => ({
+  sessionId: `full-auto:${run.id}:${record.id}`,
+  sourceLabel: "Full Auto",
+  fullAutoRunId: run.id,
+  fullAutoThesisRecordId: record.id,
+  ticker: record.ticker,
+  companyName: record.companyName,
+  sector: record.sector,
+  recommendation: formatThesisRecommendation(record.recommendation),
+  conviction: record.conviction,
+  stage: record.paperPositionId ? "Trade Desk" : "PM Review",
+  status:
+    record.monitoringState === "active"
+      ? "Active"
+      : record.monitoringState.replace(/_/g, " "),
+  oneLineThesis: record.oneLineThesis,
+});
 
 const addBucket = (
   buckets: Map<string, LiveBookRiskBucket>,
@@ -337,6 +400,79 @@ export const buildLiveBookSnapshot = (
       grossNotional,
       netPnl,
       attention: attention.length,
+      active: openPositions.filter((position) => position.thesisStatus === "active")
+        .length,
+      weakened: openPositions.filter(
+        (position) => position.thesisStatus === "weakened",
+      ).length,
+      broken: openPositions.filter((position) => position.thesisStatus === "broken")
+        .length,
+    },
+  };
+};
+
+export const buildUnifiedLiveBook = ({
+  fullAutoRuns,
+  sessions,
+}: {
+  sessions: ShellSession[];
+  fullAutoRuns: FullAutoRun[];
+}): LiveBookSnapshot => {
+  const base = buildLiveBookSnapshot(sessions);
+  const fullAutoPositions = fullAutoRuns.flatMap((run) =>
+    run.paperPositions.map((position) =>
+      buildFullAutoPositionRow(
+        position,
+        run.thesisRecords.find((record) => record.id === position.thesisRecordId),
+        run,
+      ),
+    ),
+  );
+  const fullAutoOpen = fullAutoPositions.filter(
+    (position) => position.status === "open",
+  );
+  const fullAutoClosed = fullAutoPositions.filter(
+    (position) => position.status === "closed",
+  );
+  const thesisPipeline = [
+    ...base.thesisPipeline,
+    ...fullAutoRuns.flatMap((run) =>
+      run.thesisRecords.map((record) => buildFullAutoThesisRow(record, run)),
+    ),
+  ];
+  const openPositions = [...base.openPositions, ...fullAutoOpen];
+  const closedPositions = [...base.closedPositions, ...fullAutoClosed];
+
+  const sideBuckets = new Map<string, LiveBookRiskBucket>();
+  const sectorBuckets = new Map<string, LiveBookRiskBucket>();
+  for (const position of openPositions) {
+    addBucket(sideBuckets, position.side, position.size);
+    addBucket(sectorBuckets, position.sector, position.size);
+  }
+  const grossNotional = openPositions.reduce(
+    (total, position) => total + position.size,
+    0,
+  );
+  const netPnl = openPositions.reduce((total, position) => total + position.pnl, 0);
+
+  return {
+    ...base,
+    openPositions,
+    closedPositions,
+    thesisPipeline,
+    sideBuckets: [...sideBuckets.values()].sort(
+      (left, right) => right.exposure - left.exposure,
+    ),
+    sectorBuckets: [...sectorBuckets.values()].sort(
+      (left, right) => right.exposure - left.exposure,
+    ),
+    totals: {
+      ...base.totals,
+      openPositions: openPositions.length,
+      closedPositions: closedPositions.length,
+      activeTheses: thesisPipeline.length,
+      grossNotional,
+      netPnl,
       active: openPositions.filter((position) => position.thesisStatus === "active")
         .length,
       weakened: openPositions.filter(

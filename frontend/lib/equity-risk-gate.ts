@@ -2,6 +2,7 @@ import { buildPmReviewPacket } from "@/lib/equity-pm-review";
 import { formatThesisRecommendation } from "@/lib/equity-project";
 import type {
   EquityPmReview,
+  EquityPriorWindowValidation,
   EquityProject,
   EquityRiskGate,
   EquityRiskGateDecision,
@@ -18,6 +19,7 @@ export interface EquityRiskGatePacket {
   keyRisks: string[];
   invalidationTriggers: string[];
   majorObjections: string[];
+  validation: EquityPriorWindowValidation | null;
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -130,6 +132,7 @@ export const buildRiskGatePacket = (
     suggestedAction,
     keyRisks,
     invalidationTriggers,
+    validation: content.validation,
     majorObjections: [
       compact(content.bearCase, "Downside path needs tighter sizing.", 170),
       compact(

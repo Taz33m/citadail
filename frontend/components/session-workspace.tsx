@@ -788,6 +788,63 @@ export default function SessionWorkspace({
     return recentTranscript || undefined;
   }, []);
 
+  const screenSnapshot = useCallback(() => {
+    const session = activeSessionRef.current;
+    if (!session) return {};
+
+    const snapshot = session.snapshot;
+    return {
+      activeTab: activeTabId,
+      activeTabLabel:
+        tabs.find((tab) => tab.id === activeTabId)?.label ?? activeTabId,
+      activeArtifactId: snapshot.activeArtifactId,
+      artifacts: session.artifacts.slice(0, 8).map((artifact) => ({
+        id: artifact.id,
+        summary: artifact.summary,
+        title: artifact.title,
+        type: artifact.type,
+      })),
+      equityProject: snapshot.equityProject
+        ? {
+            createdAt: snapshot.equityProject.createdAt,
+            error: snapshot.equityProject.error,
+            hasGeneratedContent: Boolean(snapshot.equityProject.generatedContent),
+            id: snapshot.equityProject.id,
+            recommendation: snapshot.equityProject.recommendation,
+            status: snapshot.equityProject.status,
+            ticker: snapshot.equityProject.ticker,
+            updatedAt: snapshot.equityProject.updatedAt,
+          }
+        : null,
+      paperPosition: snapshot.paperPosition
+        ? {
+            currentPrice: snapshot.paperPosition.currentPrice,
+            entryPrice: snapshot.paperPosition.entryPrice,
+            nextAction: snapshot.paperPosition.nextAction,
+            openedAt: snapshot.paperPosition.openedAt,
+            side: snapshot.paperPosition.side,
+            size: snapshot.paperPosition.size,
+            status: snapshot.paperPosition.status,
+            thesisStatus: snapshot.paperPosition.thesisStatus,
+            ticker: snapshot.paperPosition.ticker,
+          }
+        : null,
+      visibleWorkflow:
+        "Morning News -> Coverage Desk -> Thesis -> Memo / Financial Model / PM Deck -> PM Review -> Risk Gate -> Trade Desk -> Live Book",
+      pmReview: snapshot.pmReview,
+      recentEvents: session.events.slice(-8).map((event) => ({
+        text: event.text,
+        timestamp: event.timestamp.toISOString(),
+        type: event.type,
+      })),
+      riskGate: snapshot.riskGate,
+      selectedTicker: snapshot.selectedTicker,
+      sessionId: session.id,
+      sessionTitle: session.title,
+      thesisDraft: snapshot.thesisDraft,
+    };
+  }, [activeTabId, tabs]);
+
   if (!activeSession) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">
@@ -1007,6 +1064,7 @@ export default function SessionWorkspace({
               onUserTurn={handleUserTurn}
               onAssistantTurn={handleAssistantTurn}
               onStatusChange={setAgentStatus}
+              getScreenSnapshot={screenSnapshot}
             />
           )}
         </div>

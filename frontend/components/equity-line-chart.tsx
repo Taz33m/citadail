@@ -25,6 +25,34 @@ const buildPath = (points: Array<{ x: number; y: number }>) =>
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
     .join(" ");
 
+const niceStepFor = (range: number) => {
+  const roughStep = Math.max(range / 4, 1);
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const normalized = roughStep / magnitude;
+  if (normalized <= 1) return magnitude;
+  if (normalized <= 2) return magnitude * 2;
+  if (normalized <= 5) return magnitude * 5;
+  return magnitude * 10;
+};
+
+const chartDomain = (values: number[]) => {
+  if (!values.length) return { maxValue: 1, minValue: 0, spread: 1 };
+
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const reference = Math.max(Math.abs(rawMax), Math.abs(rawMin), 1);
+  const minimumRange = Math.max(reference * 0.02, 1);
+  const rawRange = Math.max(rawMax - rawMin, minimumRange);
+  const center = (rawMin + rawMax) / 2;
+  const paddedRange = rawRange * 1.25;
+  const step = niceStepFor(paddedRange);
+  const minValue = Math.floor((center - paddedRange / 2) / step) * step;
+  const maxValue = Math.ceil((center + paddedRange / 2) / step) * step;
+  const spread = Math.max(maxValue - minValue, 1);
+
+  return { maxValue, minValue, spread };
+};
+
 export default function EquityLineChart({
   formatValue,
   series,
@@ -32,9 +60,7 @@ export default function EquityLineChart({
   tone = "navy",
 }: EquityLineChartProps) {
   const values = series.points.map((point) => point.value);
-  const minValue = Math.min(...values, 0);
-  const maxValue = Math.max(...values, 1);
-  const spread = Math.max(maxValue - minValue, 1);
+  const { maxValue, minValue, spread } = chartDomain(values);
   const plotWidth = chartWidth - pad.left - pad.right;
   const plotHeight = chartHeight - pad.top - pad.bottom;
   const points = series.points.map((point, index) => ({

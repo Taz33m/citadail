@@ -12,6 +12,23 @@ export type WorkspaceTabId =
 
 export type ThesisRecommendation = "buy-long" | "hold-neutral" | "sell-short";
 
+export type EquityValidationStatus =
+  | "supportive"
+  | "mixed"
+  | "weak"
+  | "insufficient";
+
+export interface EquityPriorWindowValidation {
+  status: EquityValidationStatus;
+  lookbackDays: number;
+  observationCount: number;
+  medianForwardReturn: number | null;
+  winRate: number | null;
+  maxDrawdown: number | null;
+  verdict: string;
+  sourceIds: string[];
+}
+
 export interface ThesisDraft {
   ticker: string;
   recommendation: ThesisRecommendation | null;
@@ -133,6 +150,7 @@ export interface EquityProjectGeneratedContent {
   riskTriggers: EquityRiskTrigger[];
   tradeProposal: EquityTradeProposal;
   deckSlides: EquityDeckSlide[];
+  validation: EquityPriorWindowValidation | null;
 }
 
 export interface EquityProject {

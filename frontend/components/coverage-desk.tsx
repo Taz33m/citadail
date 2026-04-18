@@ -138,10 +138,10 @@ export default function CoverageDesk({
   onSetTicker,
 }: CoverageDeskProps) {
   const [query, setQuery] = useState("");
-  const [localSelectedTicker, setLocalSelectedTicker] = useState<string | null>(
+  const [localStagedTicker, setLocalStagedTicker] = useState<string | null>(
     null,
   );
-  const selectedTicker = controlledSelectedTicker ?? localSelectedTicker;
+  const selectedTicker = localStagedTicker ?? controlledSelectedTicker;
 
   const matches = useMemo(
     () => filterCoverageDeskItems(coverageDeskItems, query).slice(0, 6),
@@ -160,30 +160,38 @@ export default function CoverageDesk({
   const selectedItem =
     coverageDeskItems.find((item) => item.ticker === selectedTicker) ?? null;
 
-  const setTicker = (ticker: string) => {
+  const stageTicker = (ticker: string) => {
     const normalizedTicker = ticker.trim().toUpperCase();
     if (!normalizedTicker) return;
 
-    setLocalSelectedTicker(normalizedTicker);
+    setLocalStagedTicker(normalizedTicker);
+    setQuery(normalizedTicker);
+  };
+
+  const commitTicker = (ticker: string) => {
+    const normalizedTicker = ticker.trim().toUpperCase();
+    if (!normalizedTicker) return;
+
+    setLocalStagedTicker(normalizedTicker);
     setQuery(normalizedTicker);
     onSetTicker?.(normalizedTicker);
   };
 
   const handleSelect = (item: CoverageDeskItem) => {
-    setTicker(item.ticker);
+    stageTicker(item.ticker);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const firstMatch = matches[0];
     if (firstMatch) {
-      handleSelect(firstMatch);
+      commitTicker(firstMatch.ticker);
       return;
     }
 
     const ticker = query.trim().toUpperCase();
     if (ticker) {
-      setTicker(ticker);
+      commitTicker(ticker);
     }
   };
 
@@ -273,7 +281,7 @@ export default function CoverageDesk({
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase text-gray-400">
-                  Selected
+                  Staged
                 </p>
                 <p className="mt-1 truncate text-sm font-semibold text-gray-900">
                   {selectedItem

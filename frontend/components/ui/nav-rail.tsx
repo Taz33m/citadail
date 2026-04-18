@@ -1,7 +1,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import logoImage from "@/logo.png";
 
 export interface NavRailItem {
   id: string;
@@ -21,7 +20,7 @@ export const NavRail = ({ items, bottomItems = [] }: NavRailProps) => {
     <aside className="flex h-full w-16 flex-col border-r border-slate-200 bg-white">
       <div className="flex h-16 items-center justify-center border-b border-slate-100">
         <Image
-          src={logoImage}
+          src="/favicon.png"
           alt="Citadail"
           width={30}
           height={30}

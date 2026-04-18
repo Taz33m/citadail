@@ -4,11 +4,11 @@ Citadail is an AI-native equity research desk for building, reviewing, and monit
 
 The core loop is simple:
 
-1. Start from the Morning News desk.
-2. Pick a ticker in Coverage Desk.
-3. Create a Thesis with a long, neutral, or short bias.
-4. Generate analyst deliverables: memo, operating model, and PM deck.
-5. Move through PM Review, Risk Gate, Trade Desk, and Live Book.
+1. Start in Assist Mode or Full Auto Mode.
+2. In Assist Mode, pick a ticker in Coverage Desk and create a Thesis.
+3. Generate analyst deliverables: memo, operating model, and PM deck.
+4. Move through PM Review, Risk Gate, Trade Desk, and Live Book.
+5. In Full Auto, run the historical replay loop: brief, candidates, agents, PM/Risk, paper positions, and monitoring.
 
 This is not a live trading system. Citadail is a research, review, and paper-trade workspace for medium-horizon equity theses.
 
@@ -24,6 +24,7 @@ This is not a live trading system. Citadail is a research, review, and paper-tra
 - Risk Gate: size and risk acceptance screen.
 - Trade Desk: single-position paper trade view.
 - Live Book: portfolio-level monitor for active theses and positions.
+- Full Auto: continuous walk-forward paper desk from 2022 onward, with time-isolated source packs, agent activity, position management, and an equity curve.
 
 ## Technical Shape
 
@@ -49,7 +50,12 @@ For Gemini-backed package generation, create `frontend/.env.local` with:
 
 ```bash
 GEMINI_API_KEY=your_key_here
+PERPLEXITY_API_KEY=your_key_here
 ```
+
+The Perplexity key is used only for source import/enrichment. Historical replay uses saved source snapshots filtered by simulation time.
+
+Full Auto starts with $1M of paper capital, 10% max position size, 70% target gross exposure, 85% max gross exposure, and 10 max open positions in the MVP replay.
 
 ## Verification
 

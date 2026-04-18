@@ -5,6 +5,7 @@ import type {
   EquityForecastRow,
   EquityMemoSection,
   EquityModelAssumption,
+  EquityPriorWindowValidation,
   EquityProject,
   EquityProjectArtifact,
   EquityProjectArtifactType,
@@ -13,6 +14,7 @@ import type {
   EquitySensitivityRow,
   EquityTradeProposal,
   EquityValuationOutput,
+  EquityValidationStatus,
   ThesisDraft,
   ThesisRecommendation,
 } from "@/types/session";
@@ -513,6 +515,49 @@ const normalizeDeckSlides = (value: unknown): EquityDeckSlide[] => {
   return slides;
 };
 
+const isValidationStatus = (
+  value: unknown,
+): value is EquityValidationStatus =>
+  value === "supportive" ||
+  value === "mixed" ||
+  value === "weak" ||
+  value === "insufficient";
+
+const normalizePriorWindowValidation = (
+  value: unknown,
+): EquityPriorWindowValidation | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const status = record.status;
+  const lookbackDays = asNumber(record.lookbackDays);
+  const observationCount = asNumber(record.observationCount);
+  const verdict = asString(record.verdict);
+  if (
+    !isValidationStatus(status) ||
+    lookbackDays === null ||
+    observationCount === null ||
+    !verdict
+  ) {
+    return null;
+  }
+
+  return {
+    status,
+    lookbackDays,
+    observationCount,
+    medianForwardReturn: asNumber(record.medianForwardReturn),
+    winRate: asNumber(record.winRate),
+    maxDrawdown: asNumber(record.maxDrawdown),
+    verdict,
+    sourceIds: Array.isArray(record.sourceIds)
+      ? record.sourceIds.flatMap((item) => {
+          const sourceId = asString(item);
+          return sourceId ? [sourceId] : [];
+        })
+      : [],
+  };
+};
+
 export const normalizeGeneratedContent = (
   value: unknown,
 ): EquityProjectGeneratedContent => {
@@ -548,6 +593,7 @@ export const normalizeGeneratedContent = (
     riskTriggers: normalizeRiskTriggers(record.riskTriggers),
     tradeProposal: normalizeTradeProposal(record.tradeProposal),
     deckSlides: normalizeDeckSlides(record.deckSlides),
+    validation: normalizePriorWindowValidation(record.validation),
   };
 };
 

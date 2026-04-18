@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 
 import EquityLineChart from "@/components/equity-line-chart";
 import { buildPortfolioPnlSeries } from "@/lib/equity-chart-data";
@@ -11,6 +12,7 @@ import type {
   LiveBookRiskBucket,
   LiveBookThesisRow,
 } from "@/lib/equity-live-book";
+import type { EquityPaperPosition } from "@/types/session";
 import type { ShellSession } from "@/types/session";
 
 interface LiveBookTabProps {
@@ -42,13 +44,36 @@ export default function LiveBookTab({
   onOpenSession,
   sessions,
 }: LiveBookTabProps) {
-  const book = useMemo(() => buildLiveBookSnapshot(sessions), [sessions]);
-  const paperPositions = useMemo(
+  const router = useRouter();
+  const visibleSessions = useMemo(() => {
+    const active = sessions.find((session) => session.id === activeSessionId);
+    return active ? [active] : [];
+  }, [activeSessionId, sessions]);
+
+  const book = useMemo(
+    () => buildLiveBookSnapshot(visibleSessions),
+    [visibleSessions],
+  );
+  const paperPositions = useMemo<EquityPaperPosition[]>(
     () =>
-      sessions.flatMap((session) =>
-        session.snapshot.paperPosition ? [session.snapshot.paperPosition] : [],
-      ),
-    [sessions],
+      book.openPositions.map((position) => ({
+        id: position.sessionId,
+        projectId: position.fullAutoThesisRecordId ?? position.sessionId,
+        ticker: position.ticker,
+        side: position.side.toLowerCase() === "short" ? "short" : "long",
+        entryPrice: position.entryPrice,
+        currentPrice: position.currentPrice,
+        size: position.size,
+        status: position.status,
+        openedAt: position.openedAt,
+        closedAt: null,
+        rationale: position.rationale,
+        thesisStatus: position.thesisStatus,
+        nextCatalyst: position.nextCatalyst,
+        nextAction: position.nextAction,
+        history: [],
+      })),
+    [book.openPositions],
   );
   const portfolioSeries = useMemo(
     () => buildPortfolioPnlSeries(paperPositions),
@@ -120,7 +145,13 @@ export default function LiveBookTab({
                     <PositionRow
                       key={`${position.sessionId}-${position.ticker}`}
                       activeSessionId={activeSessionId}
-                      onOpenSession={onOpenSession}
+                      onOpenSession={(sessionId) => {
+                        if (position.fullAutoRunId) {
+                          router.push("/full-auto");
+                          return;
+                        }
+                        onOpenSession(sessionId);
+                      }}
                       position={position}
                     />
                   ))}
@@ -143,7 +174,13 @@ export default function LiveBookTab({
                   {book.thesisPipeline.map((thesis) => (
                     <ThesisRow
                       key={`${thesis.sessionId}-${thesis.ticker}`}
-                      onOpenSession={onOpenSession}
+                      onOpenSession={(sessionId) => {
+                        if (thesis.fullAutoRunId) {
+                          router.push("/full-auto");
+                          return;
+                        }
+                        onOpenSession(sessionId);
+                      }}
                       thesis={thesis}
                     />
                   ))}
@@ -175,7 +212,13 @@ export default function LiveBookTab({
                     <PositionRow
                       key={`${position.sessionId}-${position.ticker}-closed`}
                       activeSessionId={activeSessionId}
-                      onOpenSession={onOpenSession}
+                      onOpenSession={(sessionId) => {
+                        if (position.fullAutoRunId) {
+                          router.push("/full-auto");
+                          return;
+                        }
+                        onOpenSession(sessionId);
+                      }}
                       position={position}
                     />
                   ))}
@@ -242,13 +285,18 @@ const PositionRow = ({
     className="grid w-full gap-3 border-b border-slate-100 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-slate-50 lg:grid-cols-[1fr_90px_90px_110px_110px_120px_auto]"
   >
     <span className="min-w-0">
-      <span className="flex min-w-0 items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
         <span className="font-mono text-sm font-semibold text-[#061b33]">
           {position.ticker}
         </span>
         <span className="truncate text-sm text-slate-700">
           {position.companyName}
         </span>
+        {position.sourceLabel ? (
+          <span className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-400">
+            {position.sourceLabel}
+          </span>
+        ) : null}
       </span>
       <span className="mt-1 block truncate text-xs text-slate-500">
         {position.nextCatalyst}
@@ -294,6 +342,11 @@ const ThesisRow = ({
         <span className="truncate text-sm text-slate-700">
           {thesis.recommendation}
         </span>
+        {thesis.sourceLabel ? (
+          <span className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-400">
+            {thesis.sourceLabel}
+          </span>
+        ) : null}
       </span>
       <span className="mt-1 block truncate text-xs text-slate-500">
         {thesis.oneLineThesis}

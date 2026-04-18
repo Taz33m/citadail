@@ -27,6 +27,12 @@ const decisionLabel: Record<EquityRiskGateDecision, string> = {
   rejected: "Rejected",
 };
 
+const validationLabel = (value: number | null, kind: "pct" | "count") => {
+  if (value === null) return "n/a";
+  if (kind === "pct") return `${(value * 100).toFixed(1)}%`;
+  return `${value}`;
+};
+
 const Section = ({
   children,
   title,
@@ -150,6 +156,33 @@ export default function RiskGateTab({
             </div>
           </div>
         </Section>
+
+        {packet.validation ? (
+          <Section title="Prior-Window Validation">
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                ["Verdict", packet.validation.status],
+                ["Lookback", `${packet.validation.lookbackDays}d`],
+                ["Observations", validationLabel(packet.validation.observationCount, "count")],
+                ["Median Return", validationLabel(packet.validation.medianForwardReturn, "pct")],
+                ["Win Rate", validationLabel(packet.validation.winRate, "pct")],
+                ["Max Drawdown", validationLabel(packet.validation.maxDrawdown, "pct")],
+              ].map(([label, value]) => (
+                <div key={label} className="border border-slate-200 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase text-slate-400">
+                    {label}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-[#061b33]">
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 border border-slate-200 px-4 py-3 text-sm leading-6 text-slate-700">
+              {packet.validation.verdict}
+            </p>
+          </Section>
+        ) : null}
 
         <Section title="Risk Check">
           <div className="grid gap-4 lg:grid-cols-2">

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -8,10 +8,8 @@ import {
   type VoiceTranscriptPreviewEvent,
   type VoiceToolEvent,
   type VoiceUserTurnEvent,
-  useVoiceAgent,
 } from "@/hooks/useVoiceAgent";
 import type { CreateArtifactInput } from "@/lib/adk-tools";
-import type { AgentConnectMode } from "@/lib/voice-agent-controller";
 import { cn } from "@/lib/utils";
 import type {
   SessionArtifact,
@@ -45,6 +43,7 @@ interface VoiceAgentProps {
   onAssistantTurn?: (event: VoiceAssistantTurnEvent) => void;
   onStatusChange?: (status: string) => void;
   onControllerChange?: (controller: VoiceAgentControllerHandle | null) => void;
+  getScreenSnapshot?: () => Record<string, unknown>;
 }
 
 function SendIcon({ className }: { className?: string }) {
@@ -71,92 +70,120 @@ const formatTimestamp = (date: Date) =>
     minute: "2-digit",
   });
 
+const createTurnId = (prefix: string) =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? `${prefix}-${crypto.randomUUID()}`
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 export default function VoiceAgent({
   instructions,
   artifacts,
-  transcript = [],
-  transcriptPreview = null,
-  toolEvents = [],
-  onCreateArtifact,
-  getConversationContext,
-  onToolEvent,
-  onTranscriptPreviewChange,
-  onUserTurn,
-  onAssistantTurn,
   onStatusChange,
   onControllerChange,
+  getScreenSnapshot,
 }: VoiceAgentProps) {
   const [textPrompt, setTextPrompt] = useState("");
+  const [localTranscript, setLocalTranscript] = useState<SessionTranscriptEntry[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSendingText, setIsSendingText] = useState(false);
+  const [status, setStatus] = useState("connected");
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const {
-    activity,
-    connectionMode,
-    status,
-    error,
-    connectAgent,
-    disconnectAgent,
-    sendTextTurn,
-    getStatus,
-    runTool,
-  } = useVoiceAgent({
-    instructions,
-    artifacts,
-    onCreateArtifact,
-    getConversationContext,
-    onToolEvent,
-    onTranscriptPreviewChange,
-    onUserTurn,
-    onAssistantTurn,
-  });
+  const statusRef = useRef(status);
 
   useEffect(() => {
+    statusRef.current = status;
     onStatusChange?.(status);
   }, [onStatusChange, status]);
 
-  const waitForConnectedStatus = useCallback(async () => {
-    const timeoutAt = Date.now() + 20_000;
+  const sendSidebarTurn = useCallback(
+    async (prompt: string) => {
+      const normalizedPrompt = prompt.trim();
+      if (!normalizedPrompt) return;
 
-    while (getStatus() !== "connected") {
-      if (getStatus() === "error") {
-        throw new Error(error ?? "Agent entered an error state while connecting.");
-      }
+      const userTurn: SessionTranscriptEntry = {
+        id: createTurnId("user"),
+        role: "user",
+        text: normalizedPrompt,
+        timestamp: new Date(),
+      };
+      const nextTranscript = [...localTranscript, userTurn].slice(-12);
+      setLocalTranscript(nextTranscript);
 
-      if (Date.now() >= timeoutAt) {
-        throw new Error("Timed out waiting for the agent connection.");
-      }
+      const snapshot = {
+        ...(getScreenSnapshot?.() ?? {}),
+        artifacts: artifacts.map((artifact) => ({
+          id: artifact.id,
+          title: artifact.title,
+          summary: artifact.summary,
+          type: artifact.type,
+        })),
+        instructions,
+      };
 
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, 50);
+      const response = await fetch("/api/desk/chat", {
+        body: JSON.stringify({
+          message: normalizedPrompt,
+          messages: nextTranscript.slice(-8).map((entry) => ({
+            role: entry.role === "user" ? "user" : "assistant",
+            text: entry.text,
+          })),
+          snapshot,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
       });
-    }
-  }, [error, getStatus]);
+      const payload = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        reply?: string;
+        error?: string;
+        tools?: Array<{
+          name?: string;
+          message?: string;
+          input?: Record<string, unknown>;
+          output?: Record<string, unknown>;
+        }>;
+      } | null;
+
+      if (!response.ok || !payload?.success || !payload.reply) {
+        throw new Error(payload?.error ?? "Sidebar chat failed.");
+      }
+
+      const assistantTurn: SessionTranscriptEntry = {
+        id: createTurnId("assistant"),
+        role: "assistant",
+        text: payload.reply,
+        timestamp: new Date(),
+      };
+      setLocalTranscript([...nextTranscript, assistantTurn].slice(-12));
+    },
+    [
+      artifacts,
+      getScreenSnapshot,
+      instructions,
+      localTranscript,
+    ],
+  );
 
   const controller = useMemo<VoiceAgentControllerHandle>(
     () => ({
       connectVoiceAgent: async () => {
-        await connectAgent({ mode: "voice", forceStart: true });
-        await waitForConnectedStatus();
+        setStatus("connected");
       },
       connectTextAgent: async () => {
-        await connectAgent({ mode: "text", forceStart: true });
-        await waitForConnectedStatus();
+        setStatus("connected");
       },
-      disconnectAgent,
-      sendTextTurn,
-      getStatus,
-      runTool,
+      disconnectAgent: async () => {
+        setStatus("idle");
+      },
+      sendTextTurn: sendSidebarTurn,
+      getStatus: () => statusRef.current,
+      runTool: async (toolName, args = {}) => ({
+        args,
+        message: `${toolName} is handled through the sidebar chat endpoint.`,
+        success: false,
+      }),
     }),
-    [
-      connectAgent,
-      disconnectAgent,
-      getStatus,
-      runTool,
-      sendTextTurn,
-      waitForConnectedStatus,
-    ],
+    [sendSidebarTurn],
   );
 
   useEffect(() => {
@@ -166,13 +193,10 @@ export default function VoiceAgent({
     };
   }, [controller, onControllerChange]);
 
-  const isBusy = status === "requesting-permission" || status === "connecting";
-  const isConnected = status === "connected";
-  const resolvedError = actionError ?? error;
-  const isResponding = isConnected && activity === "speaking";
-  const visibleTranscript = transcriptPreview
-    ? [...transcript, transcriptPreview]
-    : transcript;
+  const isBusy = false;
+  const resolvedError = actionError;
+  const isResponding = isSendingText;
+  const visibleTranscript = localTranscript;
   const shouldShowEmptyPrompt =
     visibleTranscript.length === 0 && textPrompt.trim().length === 0;
 
@@ -188,19 +212,6 @@ export default function VoiceAgent({
     syncTextAreaHeight(textAreaRef.current);
   }, [syncTextAreaHeight, textPrompt]);
 
-  const ensureConnectedMode = useCallback(
-    async (mode: AgentConnectMode) => {
-      if (status === "connected" && connectionMode === mode) return;
-      if (status === "connected" && connectionMode !== mode) {
-        await disconnectAgent();
-      }
-
-      await connectAgent({ mode, forceStart: true });
-      await waitForConnectedStatus();
-    },
-    [connectAgent, connectionMode, disconnectAgent, status, waitForConnectedStatus],
-  );
-
   const handleTextSubmit = useCallback(
     async (event?: FormEvent<HTMLFormElement>) => {
       event?.preventDefault();
@@ -212,8 +223,8 @@ export default function VoiceAgent({
       setIsSendingText(true);
 
       try {
-        await ensureConnectedMode("text");
-        await sendTextTurn(normalizedPrompt);
+        setStatus("connected");
+        await sendSidebarTurn(normalizedPrompt);
         setTextPrompt("");
       } catch (nextError) {
         setActionError(
@@ -225,7 +236,7 @@ export default function VoiceAgent({
         setIsSendingText(false);
       }
     },
-    [ensureConnectedMode, isBusy, isSendingText, sendTextTurn, textPrompt],
+    [isBusy, isSendingText, sendSidebarTurn, textPrompt],
   );
 
   return (
@@ -250,9 +261,6 @@ export default function VoiceAgent({
                 )}
               >
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold uppercase opacity-70">
-                    {entry.role === "assistant" ? "Agent" : entry.role}
-                  </span>
                   <span className="text-[11px] opacity-60">
                     {formatTimestamp(entry.timestamp)}
                   </span>
@@ -271,28 +279,6 @@ export default function VoiceAgent({
                 Ask for a brief, call a tool, or create an artifact from here.
               </p>
             </div>
-          </div>
-        ) : null}
-
-        {toolEvents.length ? (
-          <div className="mt-4 space-y-2">
-            <p className="text-xs font-semibold uppercase text-gray-500">
-              Tool Calls
-            </p>
-            {toolEvents.slice(-4).map((event) => (
-              <div
-                key={event.id}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-semibold text-gray-900">
-                    {String(event.metadata?.toolName ?? "tool")}
-                  </span>
-                  <span>{formatTimestamp(event.timestamp)}</span>
-                </div>
-                <p className="mt-1 line-clamp-2 leading-5">{event.text}</p>
-              </div>
-            ))}
           </div>
         ) : null}
       </div>

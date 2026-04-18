@@ -252,6 +252,7 @@ export const generatedEquityContentFixture: EquityProjectGeneratedContent = {
       speakerNotes: "Bridge research to desk action.",
     },
   ],
+  validation: null,
 };
 
 export const buildReadyEquityProjectFixture = () =>
