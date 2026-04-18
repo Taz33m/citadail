@@ -1,0 +1,26 @@
+.cursor/
+.DS_Store
+node_modules/
+dist/
+build/
+*.log
+.env
+*.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# frontend local/runtime artifacts
+frontend/data/*.json
+frontend/test-results/
+
+# accidental root placeholder files
+/app
+/components
+/hooks
+/lib
+/public
+/scripts
+/smoke
+/tests
+/types
