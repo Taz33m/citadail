@@ -51,7 +51,7 @@ export default function LiveBookTab({
   }, [activeSessionId, sessions]);
 
   const book = useMemo(
-    () => buildLiveBookSnapshot(visibleSessions),
+    () => buildLiveBookSnapshot(visibleSessions, { includeDemoAssistData: true }),
     [visibleSessions],
   );
   const paperPositions = useMemo<EquityPaperPosition[]>(

@@ -95,6 +95,10 @@ export interface LiveBookSnapshot {
   };
 }
 
+interface BuildLiveBookOptions {
+  includeDemoAssistData?: boolean;
+}
+
 const companyFor = (ticker: string) => {
   const coverage = coverageDeskItems.find((item) => item.ticker === ticker);
   return {
@@ -260,6 +264,212 @@ const addBucket = (
   });
 };
 
+const buildRiskBuckets = (openPositions: LiveBookPositionRow[]) => {
+  const sideBuckets = new Map<string, LiveBookRiskBucket>();
+  const sectorBuckets = new Map<string, LiveBookRiskBucket>();
+  for (const position of openPositions) {
+    addBucket(sideBuckets, position.side, position.size);
+    addBucket(sectorBuckets, position.sector, position.size);
+  }
+
+  return {
+    sideBuckets: [...sideBuckets.values()].sort(
+      (left, right) => right.exposure - left.exposure,
+    ),
+    sectorBuckets: [...sectorBuckets.values()].sort(
+      (left, right) => right.exposure - left.exposure,
+    ),
+  };
+};
+
+const demoAssistPosition = ({
+  currentPrice,
+  entryPrice,
+  nextAction,
+  nextCatalyst,
+  openedAt,
+  rationale,
+  size,
+  status = "open",
+  thesisStatus = "active",
+  ticker,
+}: {
+  ticker: string;
+  entryPrice: number;
+  currentPrice: number;
+  size: number;
+  openedAt: string;
+  rationale: string;
+  nextCatalyst: string;
+  nextAction: EquityPaperPosition["nextAction"];
+  status?: EquityPaperPosition["status"];
+  thesisStatus?: EquityPaperPosition["thesisStatus"];
+}): LiveBookPositionRow => {
+  const company = companyFor(ticker);
+  const returnPct = (currentPrice - entryPrice) / entryPrice;
+  return {
+    sessionId: `assist-demo:${ticker}`,
+    sessionTitle: "Assist Demo Book",
+    sourceLabel: "Assist",
+    ticker,
+    companyName: company.companyName,
+    sector: company.sector,
+    side: "LONG",
+    status,
+    entryPrice,
+    currentPrice,
+    size,
+    pnl: Math.round(size * returnPct),
+    returnPct,
+    thesisStatus,
+    nextAction,
+    nextCatalyst,
+    rationale,
+    openedAt,
+  };
+};
+
+const buildDemoAssistSnapshot = (): LiveBookSnapshot => {
+  const openPositions: LiveBookPositionRow[] = [
+    demoAssistPosition({
+      ticker: "NVDA",
+      entryPrice: 92,
+      currentPrice: 155,
+      size: 70_000,
+      openedAt: "2024-07-10T13:30:00.000Z",
+      nextAction: "Hold",
+      nextCatalyst: "Next AI accelerator demand check",
+      rationale:
+        "AI accelerator demand and data-center backlog supported a medium-horizon long.",
+    }),
+    demoAssistPosition({
+      ticker: "MSFT",
+      entryPrice: 420,
+      currentPrice: 500,
+      size: 80_000,
+      openedAt: "2024-05-15T13:30:00.000Z",
+      nextAction: "Hold",
+      nextCatalyst: "Cloud margin and AI monetization update",
+      rationale:
+        "Azure durability and Office cash flow supported a steady compounder position.",
+    }),
+    demoAssistPosition({
+      ticker: "LLY",
+      entryPrice: 760,
+      currentPrice: 840,
+      size: 55_000,
+      openedAt: "2024-09-04T13:30:00.000Z",
+      nextAction: "Revisit",
+      nextCatalyst: "Obesity franchise capacity update",
+      rationale:
+        "GLP-1 demand and pipeline optionality supported the long, with valuation still monitored.",
+      thesisStatus: "weakened",
+    }),
+    demoAssistPosition({
+      ticker: "JPM",
+      entryPrice: 200,
+      currentPrice: 245,
+      size: 45_000,
+      openedAt: "2025-02-18T14:30:00.000Z",
+      nextAction: "Hold",
+      nextCatalyst: "Credit quality and net interest income update",
+      rationale:
+        "Balance-sheet quality and resilient credit trends supported bank exposure.",
+    }),
+  ];
+  const closedPositions: LiveBookPositionRow[] = [
+    demoAssistPosition({
+      ticker: "CRM",
+      entryPrice: 255,
+      currentPrice: 295,
+      size: 35_000,
+      openedAt: "2024-10-09T13:30:00.000Z",
+      nextAction: "Hold",
+      nextCatalyst: "Closed after margin catalyst played through",
+      rationale:
+        "Margin discipline and enterprise software demand drove a completed paper trade.",
+      status: "closed",
+    }),
+    demoAssistPosition({
+      ticker: "XOM",
+      entryPrice: 120,
+      currentPrice: 112,
+      size: 30_000,
+      openedAt: "2024-06-03T13:30:00.000Z",
+      nextAction: "Exit",
+      nextCatalyst: "Closed after commodity setup weakened",
+      rationale:
+        "Energy cash-flow recovery thesis was closed when the catalyst path deteriorated.",
+      status: "closed",
+      thesisStatus: "weakened",
+    }),
+  ];
+  const thesisPipeline: LiveBookThesisRow[] = [
+    ...openPositions.map((position) => ({
+      sessionId: position.sessionId,
+      sourceLabel: "Assist" as const,
+      ticker: position.ticker,
+      companyName: position.companyName,
+      sector: position.sector,
+      recommendation: "Buy / Long",
+      conviction:
+        position.ticker === "NVDA"
+          ? 8.1
+          : position.ticker === "MSFT"
+            ? 7.6
+            : position.ticker === "LLY"
+              ? 7.4
+              : 7.0,
+      stage: "Trade Desk" as const,
+      status: `${position.thesisStatus}; ${position.nextAction}`,
+      oneLineThesis: firstSentence(position.rationale, position.rationale),
+    })),
+    {
+      sessionId: "assist-demo:ORCL-review",
+      sourceLabel: "Assist",
+      ticker: "ORCL",
+      companyName: companyFor("ORCL").companyName,
+      sector: companyFor("ORCL").sector,
+      recommendation: "Buy / Long",
+      conviction: 6.9,
+      stage: "PM Review",
+      status: "Awaiting PM",
+      oneLineThesis:
+        "Database cash flow and cloud migration remain under PM review before sizing.",
+    },
+  ];
+  const { sectorBuckets, sideBuckets } = buildRiskBuckets(openPositions);
+  const grossNotional = openPositions.reduce(
+    (total, position) => total + position.size,
+    0,
+  );
+  const netPnl = openPositions.reduce((total, position) => total + position.pnl, 0);
+
+  return {
+    openPositions,
+    closedPositions,
+    thesisPipeline,
+    attention: [],
+    sideBuckets,
+    sectorBuckets,
+    totals: {
+      openPositions: openPositions.length,
+      closedPositions: closedPositions.length,
+      activeTheses: thesisPipeline.length,
+      grossNotional,
+      netPnl,
+      attention: 0,
+      active: openPositions.filter((position) => position.thesisStatus === "active")
+        .length,
+      weakened: openPositions.filter(
+        (position) => position.thesisStatus === "weakened",
+      ).length,
+      broken: openPositions.filter((position) => position.thesisStatus === "broken")
+        .length,
+    },
+  };
+};
+
 const buildAttention = (
   sessions: ShellSession[],
   openPositions: LiveBookPositionRow[],
@@ -354,6 +564,7 @@ const buildAttention = (
 
 export const buildLiveBookSnapshot = (
   sessions: ShellSession[],
+  options: BuildLiveBookOptions = {},
 ): LiveBookSnapshot => {
   const positions = sessions.flatMap((session) => {
     const position = session.snapshot.paperPosition;
@@ -368,31 +579,29 @@ export const buildLiveBookSnapshot = (
     return project?.status === "ready" ? [buildThesisRow(project, session)] : [];
   });
 
-  const sideBuckets = new Map<string, LiveBookRiskBucket>();
-  const sectorBuckets = new Map<string, LiveBookRiskBucket>();
-  for (const position of openPositions) {
-    addBucket(sideBuckets, position.side, position.size);
-    addBucket(sectorBuckets, position.sector, position.size);
-  }
-
   const netPnl = openPositions.reduce((total, position) => total + position.pnl, 0);
   const grossNotional = openPositions.reduce(
     (total, position) => total + position.size,
     0,
   );
   const attention = buildAttention(sessions, openPositions);
+  const { sectorBuckets, sideBuckets } = buildRiskBuckets(openPositions);
+  const hasRealBook =
+    openPositions.length > 0 ||
+    closedPositions.length > 0 ||
+    thesisPipeline.length > 0;
+
+  if (options.includeDemoAssistData && !hasRealBook) {
+    return buildDemoAssistSnapshot();
+  }
 
   return {
     openPositions,
     closedPositions,
     thesisPipeline,
     attention,
-    sideBuckets: [...sideBuckets.values()].sort(
-      (left, right) => right.exposure - left.exposure,
-    ),
-    sectorBuckets: [...sectorBuckets.values()].sort(
-      (left, right) => right.exposure - left.exposure,
-    ),
+    sideBuckets,
+    sectorBuckets,
     totals: {
       openPositions: openPositions.length,
       closedPositions: closedPositions.length,
