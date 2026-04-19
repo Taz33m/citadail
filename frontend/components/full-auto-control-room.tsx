@@ -43,9 +43,6 @@ const fmtPct = (value: number) =>
 
 const fmtUnsignedPct = (value: number) => `${(value * 100).toFixed(1)}%`;
 
-const fmtMaybePct = (value: number | null) =>
-  value === null ? "n/a" : fmtPct(value);
-
 const commandLabel: Record<FullAutoStepCommand, string> = {
   start: "Start",
   pause: "Pause",
@@ -685,17 +682,6 @@ export default function FullAutoControlRoom() {
       whyCurrent,
     };
   }, [openPositions, run]);
-  const currentValidation = useMemo(() => {
-    if (!run) return null;
-    const ticker = currentFocus?.ticker;
-    return (
-      run.thesisRecords.find(
-        (record) => record.ticker === ticker && record.validation,
-      )?.validation ??
-      run.thesisRecords.find((record) => record.validation)?.validation ??
-      null
-    );
-  }, [currentFocus?.ticker, run]);
   const latestOpenClawProof = dedalusRuntime?.proof.latestOpenClawProof ?? null;
   const displayJournal = useMemo(
     () => (run ? journalEntriesForDisplay(run) : []),
@@ -1048,7 +1034,6 @@ export default function FullAutoControlRoom() {
                     </p>
                   </div>
                 </div>
-                <ValidationCard validation={currentValidation} />
               </Panel>
             </div>
 
@@ -1293,67 +1278,6 @@ const Metric = ({ label, value }: { label: string; value: string }) => (
     <p className="mt-1 text-xl font-semibold">{value}</p>
   </div>
 );
-
-const ValidationCard = ({
-  validation,
-}: {
-  validation: ThesisRecord["validation"];
-}) => {
-  if (!validation) {
-    return (
-      <div className="mt-4 border border-[#e1e6ee] px-3 py-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-          Prior-Window Validation
-        </p>
-        <p className="mt-2 text-sm leading-6 text-slate-500">
-          Runs after PM Synth and before Risk Gate.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-4 border border-[#e1e6ee] px-3 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-          Prior-Window Validation
-        </p>
-        <span
-          className={cn(
-            "border px-2 py-1 text-xs font-semibold capitalize",
-            validation.status === "supportive" &&
-              "border-emerald-200 bg-emerald-50 text-emerald-700",
-            validation.status === "mixed" &&
-              "border-amber-200 bg-amber-50 text-amber-700",
-            validation.status === "weak" &&
-              "border-red-200 bg-red-50 text-red-700",
-            validation.status === "insufficient" &&
-              "border-slate-200 bg-slate-50 text-slate-600",
-          )}
-        >
-          {validation.status}
-        </span>
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <Metric label="Lookback" value={`${validation.lookbackDays}d`} />
-        <Metric label="Obs" value={`${validation.observationCount}`} />
-        <Metric
-          label="Median"
-          value={fmtMaybePct(validation.medianForwardReturn)}
-        />
-        <Metric label="Win Rate" value={fmtMaybePct(validation.winRate)} />
-        <Metric
-          label="Max DD"
-          value={fmtMaybePct(validation.maxDrawdown)}
-        />
-        <Metric label="Sources" value={`${validation.sourceIds.length}`} />
-      </div>
-      <p className="mt-3 text-sm leading-6 text-slate-600">
-        {validation.verdict}
-      </p>
-    </div>
-  );
-};
 
 const PositionCard = ({ position }: { position: FullAutoPaperPosition }) => {
   const lastPriceKnownAt = position.lastPriceKnownAt ?? position.openedAt;
