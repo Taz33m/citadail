@@ -4,6 +4,30 @@ Citadail is an AI-native equity research desk for building, reviewing, executing
 
 The product is intentionally not a retail investing assistant, not a live brokerage terminal, and not an autonomous live trader. Citadail is a paper-only research and desk operating system.
 
+## Stack At A Glance
+
+```mermaid
+flowchart TB
+  PM["PM / Analyst"] --> UI["Citadail Workbench<br/>Next.js + React"]
+  UI --> Assist["Assist Mode<br/>Thesis to analyst package"]
+  UI --> Auto["Full Auto<br/>Walk-forward paper desk"]
+  UI --> Chat["Sidebar AI<br/>screen-aware desk copilot"]
+
+  Assist --> Office["Office Artifacts<br/>DOCX / XLSX / PPTX"]
+  Auto --> Agents["Agent Pipeline<br/>Brief / Analyst Swarm / PM / Risk / Desk / Monitor"]
+  Agents --> Book["Paper Book<br/>positions, P&L, audit journal"]
+
+  Sources["Replay + Market Sources<br/>filings, fundamentals, news, prices"] --> Assist
+  Sources --> Auto
+
+  Gemini["Gemini<br/>generation + voice/text runtime"] --> Assist
+  Gemini --> Chat
+  Spectrum["Photon Spectrum<br/>iMessage command layer"] --> Auto
+  Spectrum --> Book
+  Dedalus["Dedalus<br/>machine-backed runtime"] --> OpenClaw["OpenClaw-compatible<br/>step proof"]
+  OpenClaw --> Auto
+```
+
 ## Core Loop
 
 1. Start in Assist Mode or Full Auto Mode.
