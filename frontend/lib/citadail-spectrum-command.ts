@@ -15,6 +15,7 @@ const commandPatterns: Array<{
   { type: "start_feed", pattern: /^(?:start|enable|subscribe)\s+(?:feed|auto|agents?)\b/i },
   { type: "stop_feed", pattern: /^(?:stop|disable|unsubscribe)\s+(?:feed|auto|agents?)\b/i },
   { type: "pulse", pattern: /^(?:pulse|dispatch|update)\b/i },
+  { type: "run_machine_step", pattern: /^(?:run\s+)?(?:machine|openclaw)\s+step\b/i },
   { type: "runtime", pattern: /^(?:runtime|dedalus|machine|openclaw)\b/i },
   { type: "send_back", pattern: /^send\s+back\b/i, ticker: true },
   { type: "risk_approve", pattern: /^risk\s+approve\b/i, ticker: true },

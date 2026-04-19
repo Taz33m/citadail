@@ -9,7 +9,7 @@ import {
 import type { DedalusRuntimeActionBody } from "@/types/dedalus-runtime";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 120;
 
 export async function GET() {
   try {
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
 
     const runtimeStatus = await runDedalusRuntimeAction({
       action: body.action,
+      command: body.command,
       run: body.run,
     });
     return NextResponse.json({

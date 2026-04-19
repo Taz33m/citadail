@@ -4,6 +4,7 @@ import {
   getDedalusRuntimeStatus,
 } from "@/lib/dedalus-runtime";
 import { createPaperPositionFromRiskDecision, recalcPortfolio, stepFullAutoRun } from "@/lib/full-auto-orchestrator";
+import { runFullAutoStepWithRuntime } from "@/lib/full-auto-step-runtime";
 import { getLatestPriceSnapshotAt } from "@/lib/full-auto-historical-data";
 import { createEquityProjectFromThesisRecord } from "@/lib/full-auto-session-bridge";
 import {
@@ -73,7 +74,7 @@ const helpText = [
   "",
   "Start the room: Citadail start feed",
   "Check the desk: Citadail brief, book, positions, watch",
-  "Check runtime: Citadail runtime",
+  "Check runtime: Citadail runtime, run machine step",
   "Open a name: Citadail thesis AAPL, news AAPL, chart AAPL, deck AAPL",
   "Act on paper: Citadail approve AAPL, open AAPL, trim AAPL, exit AAPL",
   "",
@@ -653,6 +654,36 @@ export const runCitadailSpectrumCommand = async (
       kind: "text",
       text: formatDedalusRuntimeForPm(status),
     };
+  } else if (command.type === "run_machine_step") {
+    try {
+      const result = await runFullAutoStepWithRuntime({
+        command: run.status === "idle" ? "start" : "step_event",
+        mode: "dedalus_openclaw",
+        run,
+      });
+      run = result.run;
+      response = {
+        auditText: "run machine step",
+        kind: "action",
+        text: [
+          result.proof?.summaryLine ??
+            `OpenClaw on Dedalus advanced the paper replay to ${fmtDate(run.simulationTime)}.`,
+          "",
+          summarizeBook(run),
+        ].join("\n"),
+      };
+    } catch (error) {
+      response = {
+        auditText: "run machine step failed",
+        kind: "error",
+        text: [
+          "Machine-backed step did not complete.",
+          error instanceof Error ? error.message : "OpenClaw runtime unavailable.",
+          "",
+          paperOnlyLine,
+        ].join("\n"),
+      };
+    }
   } else if (command.type === "brief") {
     const result = await summarizeBrief(run);
     run = result.run;

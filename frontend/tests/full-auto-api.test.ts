@@ -14,6 +14,10 @@ const statePath = path.join(
   os.tmpdir(),
   `citadail-full-auto-api-test-${process.pid}.json`,
 );
+const dedalusStatePath = path.join(
+  os.tmpdir(),
+  `citadail-full-auto-api-dedalus-test-${process.pid}.json`,
+);
 
 const request = (body: unknown) =>
   new Request("http://localhost/api/full-auto/test", {
@@ -23,8 +27,12 @@ const request = (body: unknown) =>
 
 describe("Full Auto API routes", () => {
   beforeEach(async () => {
+    delete process.env.DEDALUS_API_KEY;
+    delete process.env.DEDALUS_MACHINE_ID;
     process.env.CITADAIL_SPECTRUM_STATE_PATH = statePath;
+    process.env.CITADAIL_DEDALUS_STATE_PATH = dedalusStatePath;
     await rm(statePath, { force: true });
+    await rm(dedalusStatePath, { force: true });
   });
 
   it("starts a run through the step endpoint", async () => {
@@ -32,6 +40,7 @@ describe("Full Auto API routes", () => {
       request({ command: "start", run: createFullAutoRun() }) as never,
     );
     const payload = (await response.json()) as {
+      proof?: { status: string };
       success: boolean;
       run?: ReturnType<typeof createFullAutoRun>;
     };
@@ -40,6 +49,25 @@ describe("Full Auto API routes", () => {
     expect(payload.run?.status).toBe("running");
     expect(payload.run?.simulationTime).toBe("2022-01-01T14:30:00.000Z");
     expect(payload.run?.thesisRecords[0]?.validation).toBeTruthy();
+    expect(payload.proof?.status).toBe("local_fallback");
+  });
+
+  it("fails safely when strict machine-backed execution is unavailable", async () => {
+    const response = await stepPost(
+      request({
+        command: "start",
+        executionMode: "dedalus_openclaw",
+        run: createFullAutoRun(),
+      }) as never,
+    );
+    const payload = (await response.json()) as {
+      error?: string;
+      success: boolean;
+    };
+
+    expect(response.status).toBe(503);
+    expect(payload.success).toBe(false);
+    expect(payload.error).toMatch(/machine id|dedalus|configured/i);
   });
 
   it("advances a run through the step endpoint", async () => {

@@ -6,18 +6,24 @@ import Dedalus from "dedalus-labs";
 import type {
   DedalusMachineSummary,
   DedalusOpenClawStatus,
+  FullAutoExecutionMode,
   DedalusRuntimeAction,
   DedalusRuntimePhase,
   DedalusRuntimeProof,
   DedalusRuntimeStatus,
+  OpenClawExecutionProof,
+  OpenClawStepCommand,
 } from "@/types/dedalus-runtime";
 import type { FullAutoRun } from "@/types/full-auto";
 
 const DEFAULT_DCS_BASE_URL = "https://dcs.dedaluslabs.ai";
 const DEFAULT_API_BASE_URL = "https://api.dedaluslabs.ai";
+const DCS_API_PREFIX = "/v1";
 const STATE_DIR = "/home/machine/citadail/state";
-const RUN_STATE_PATH = `${STATE_DIR}/full-auto-run.json`;
-const RUNTIME_STATUS_PATH = `${STATE_DIR}/runtime-status.json`;
+const RUN_STATE_PATH = STATE_DIR + "/full-auto-run.json";
+const RUNTIME_STATUS_PATH = STATE_DIR + "/runtime-status.json";
+const OPENCLAW_INPUT_PATH = STATE_DIR + "/openclaw-step-input.json";
+const OPENCLAW_WORKER_PATH = "/home/machine/citadail/openclaw-step-worker.ts";
 const MAX_ERROR_LENGTH = 280;
 
 type DcsMachineResponse = {
@@ -63,6 +69,7 @@ export const validDedalusActions: DedalusRuntimeAction[] = [
   "create_machine",
   "bootstrap_machine",
   "sync_full_auto_run",
+  "run_openclaw_step",
   "openclaw_health",
   "sleep_machine",
 ];
@@ -77,6 +84,8 @@ const emptyProof = (): DedalusRuntimeProof => ({
   activeTheses: 0,
   journalEntries: 0,
   lastSyncedAt: null,
+  latestOpenClawProof: null,
+  openClawProofs: [],
   persistedSimulationTime: null,
 });
 
@@ -85,6 +94,31 @@ const emptyOpenClawStatus = (): DedalusOpenClawStatus => ({
   detail: null,
   health: "unknown",
 });
+
+const isOpenClawProof = (value: unknown): value is OpenClawExecutionProof => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<OpenClawExecutionProof>;
+  return (
+    typeof candidate.id === "string" &&
+    (candidate.command === "start" ||
+      candidate.command === "step" ||
+      candidate.command === "pause") &&
+    typeof candidate.completedAt === "string" &&
+    typeof candidate.eventCount === "number" &&
+    (candidate.executionMode === "local" ||
+      candidate.executionMode === "hybrid" ||
+      candidate.executionMode === "dedalus_openclaw") &&
+    typeof candidate.simulationTime === "string" &&
+    typeof candidate.startedAt === "string" &&
+    (candidate.status === "remote_success" ||
+      candidate.status === "local_fallback" ||
+      candidate.status === "remote_failed") &&
+    typeof candidate.summaryLine === "string"
+  );
+};
+
+const normalizeOpenClawProofs = (value: unknown): OpenClawExecutionProof[] =>
+  Array.isArray(value) ? value.filter(isOpenClawProof).slice(0, 3) : [];
 
 const createInitialState = (): DedalusRuntimeState => ({
   apiConnected: false,
@@ -160,6 +194,14 @@ const normalizeState = (value: unknown): DedalusRuntimeState => {
               typeof candidate.proof.lastSyncedAt === "string"
                 ? candidate.proof.lastSyncedAt
                 : null,
+            latestOpenClawProof: isOpenClawProof(
+              candidate.proof.latestOpenClawProof,
+            )
+              ? candidate.proof.latestOpenClawProof
+              : null,
+            openClawProofs: normalizeOpenClawProofs(
+              candidate.proof.openClawProofs,
+            ),
             persistedSimulationTime:
               typeof candidate.proof.persistedSimulationTime === "string"
                 ? candidate.proof.persistedSimulationTime
@@ -205,7 +247,13 @@ const runtimeStatusFromState = (
     reason: state.machineReason,
   },
   openclaw: state.openclaw,
-  phase: Boolean(process.env.DEDALUS_API_KEY) ? state.phase : "unconfigured",
+  phase: process.env.DEDALUS_API_KEY
+    ? state.phase === "unconfigured"
+      ? state.machineId
+        ? "machine_running"
+        : "api_connected"
+      : state.phase
+    : "unconfigured",
   proof: state.proof,
   updatedAt: state.updatedAt,
 });
@@ -267,7 +315,9 @@ const updateMachineState = async (
   });
 
 const retrieveMachine = async (machineId: string) => {
-  const machine = await dcsClient().get<DcsMachineResponse>(`/machines/${machineId}`);
+  const machine = await dcsClient().get<DcsMachineResponse>(
+    `${DCS_API_PREFIX}/machines/${machineId}`,
+  );
   return machineSummaryFrom(machine);
 };
 
@@ -291,7 +341,7 @@ const waitForExecution = async ({
 }) => {
   const startedAt = Date.now();
   let latest = await dcsClient().get<DcsExecutionResponse>(
-    `/machines/${machineId}/executions/${executionId}`,
+    `${DCS_API_PREFIX}/machines/${machineId}/executions/${executionId}`,
   );
   while (
     latest.status !== "succeeded" &&
@@ -300,7 +350,7 @@ const waitForExecution = async ({
   ) {
     await sleep(1000);
     latest = await dcsClient().get<DcsExecutionResponse>(
-      `/machines/${machineId}/executions/${executionId}`,
+      `${DCS_API_PREFIX}/machines/${machineId}/executions/${executionId}`,
     );
   }
   return latest;
@@ -316,7 +366,7 @@ const machineExec = async ({
   timeoutMs?: number;
 }) => {
   const created = await dcsClient().post<DcsExecutionResponse>(
-    `/machines/${machineId}/executions`,
+    `${DCS_API_PREFIX}/machines/${machineId}/executions`,
     {
       body: {
         command: ["/bin/bash", "-c", command],
@@ -329,7 +379,7 @@ const machineExec = async ({
   if (!executionId) throw new Error("Dedalus execution id missing.");
   const result = await waitForExecution({ executionId, machineId, timeoutMs });
   const output = await dcsClient().get<DcsExecutionOutput>(
-    `/machines/${machineId}/executions/${executionId}/output`,
+    `${DCS_API_PREFIX}/machines/${machineId}/executions/${executionId}/output`,
   );
   if (result.status !== "succeeded") {
     throw new Error(output.stderr || output.stdout || "Dedalus execution failed.");
@@ -370,14 +420,269 @@ const writeMachineFile = async ({
   });
 };
 
-const proofFromRun = (run: FullAutoRun): DedalusRuntimeProof => ({
+const remoteSource = async (
+  localPath: string,
+  replacements: Array<[RegExp, string]>,
+) => {
+  let content = await readFile(path.join(process.cwd(), localPath), "utf8");
+  for (const [pattern, replacement] of replacements) {
+    content = content.replace(pattern, replacement);
+  }
+  return content;
+};
+
+const uploadOpenClawStepRuntime = async (machineId: string) => {
+  const libReplacements: Array<[RegExp, string]> = [
+    [/@\/lib\/full-auto-agent-runtime/g, "./full-auto-agent-runtime"],
+    [/@\/lib\/full-auto-historical-data/g, "./full-auto-historical-data"],
+    [/@\/types\/full-auto/g, "../types/full-auto"],
+    [/@\/types\/session/g, "../types/session"],
+  ];
+  const typeReplacements: Array<[RegExp, string]> = [
+    [/@\/types\/session/g, "./session"],
+  ];
+  await writeMachineFile({
+    content: await remoteSource("lib/full-auto-orchestrator.ts", libReplacements),
+    machineId,
+    remotePath: "/home/machine/citadail/lib/full-auto-orchestrator.ts",
+  });
+  await writeMachineFile({
+    content: await remoteSource("lib/full-auto-agent-runtime.ts", [
+      [/@\/types\/full-auto/g, "../types/full-auto"],
+    ]),
+    machineId,
+    remotePath: "/home/machine/citadail/lib/full-auto-agent-runtime.ts",
+  });
+  await writeMachineFile({
+    content: await remoteSource("lib/full-auto-historical-data.ts", [
+      [/@\/types\/full-auto/g, "../types/full-auto"],
+    ]),
+    machineId,
+    remotePath: "/home/machine/citadail/lib/full-auto-historical-data.ts",
+  });
+  await writeMachineFile({
+    content: await remoteSource("types/full-auto.ts", typeReplacements),
+    machineId,
+    remotePath: "/home/machine/citadail/types/full-auto.ts",
+  });
+  await writeMachineFile({
+    content: await remoteSource("types/session.ts", []),
+    machineId,
+    remotePath: "/home/machine/citadail/types/session.ts",
+  });
+  await writeMachineFile({
+    content: openClawStepWorkerSource,
+    machineId,
+    remotePath: OPENCLAW_WORKER_PATH,
+  });
+};
+
+const openClawStepWorkerSource = String.raw`
+import { readFile, writeFile } from "node:fs/promises";
+import { stepFullAutoRun } from "./lib/full-auto-orchestrator";
+import type { FullAutoRun, FullAutoStepCommand } from "./types/full-auto";
+
+type OpenClawStepCommand = "start" | "step" | "pause";
+
+interface WorkerInput {
+  command: OpenClawStepCommand;
+  executionId: string;
+  previousProofs: unknown[];
+  run: FullAutoRun;
+  startedAt: string;
+}
+
+const STATE_DIR = "/home/machine/citadail/state";
+const RUN_STATE_PATH = STATE_DIR + "/full-auto-run.json";
+const RUNTIME_STATUS_PATH = STATE_DIR + "/runtime-status.json";
+const OPENCLAW_PROOF_PATH = STATE_DIR + "/openclaw-proof.json";
+const OPENCLAW_INPUT_PATH = STATE_DIR + "/openclaw-step-input.json";
+
+const stepCommandFor = (command: OpenClawStepCommand): FullAutoStepCommand => {
+  if (command === "start") return "start";
+  if (command === "pause") return "pause";
+  return "step_event";
+};
+
+const proofDate = (value: string) =>
+  new Date(value).toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  });
+
+const isProof = (value: unknown) =>
+  Boolean(value && typeof value === "object" && typeof (value as { id?: unknown }).id === "string");
+
+const input = JSON.parse(await readFile(OPENCLAW_INPUT_PATH, "utf8")) as WorkerInput;
+const beforeEvents = input.run.agentEvents.length;
+const nextRun = await stepFullAutoRun({
+  command: stepCommandFor(input.command),
+  run: input.run,
+});
+const eventCount = Math.max(0, nextRun.agentEvents.length - beforeEvents);
+const completedAt = new Date().toISOString();
+const proof = {
+  command: input.command,
+  completedAt,
+  error: null,
+  eventCount,
+  executionId: input.executionId,
+  executionMode: "dedalus_openclaw",
+  id: "openclaw-proof-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+  simulationTime: nextRun.simulationTime,
+  startedAt: input.startedAt,
+  status: "remote_success",
+  summaryLine: "OpenClaw on Dedalus completed one replay step at " + proofDate(nextRun.simulationTime) + " with " + eventCount + " agent events.",
+};
+const history = [proof, ...(input.previousProofs ?? []).filter(isProof)].slice(0, 3);
+const runtimeStatus = {
+  activeTheses: nextRun.thesisRecords.filter((record) => record.monitoringState === "active").length,
+  journalEntries: nextRun.journal.length,
+  lastSyncedAt: completedAt,
+  latestOpenClawProof: proof,
+  openClawProofs: history,
+  paperOnly: true,
+  persistedSimulationTime: nextRun.simulationTime,
+  source: "Citadail OpenClaw Full Auto",
+};
+await writeFile(RUN_STATE_PATH, JSON.stringify(nextRun), "utf8");
+await writeFile(RUNTIME_STATUS_PATH, JSON.stringify(runtimeStatus, null, 2), "utf8");
+await writeFile(OPENCLAW_PROOF_PATH, JSON.stringify({ latest: proof, history }, null, 2), "utf8");
+console.log(JSON.stringify({ proof, run: nextRun }));
+`;
+
+const proofFromRun = (
+  run: FullAutoRun,
+  existingProof: DedalusRuntimeProof = emptyProof(),
+): DedalusRuntimeProof => ({
   activeTheses: run.thesisRecords.filter(
     (record) => record.monitoringState === "active",
   ).length,
   journalEntries: run.journal.length,
   lastSyncedAt: nowIso(),
+  latestOpenClawProof: existingProof.latestOpenClawProof,
+  openClawProofs: existingProof.openClawProofs,
   persistedSimulationTime: run.simulationTime,
 });
+
+const proofId = () =>
+  `openclaw-proof-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const formatProofDate = (value: string) =>
+  new Date(value).toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    year: "numeric",
+  });
+
+const proofSummaryLine = ({
+  eventCount,
+  simulationTime,
+  status,
+}: {
+  eventCount: number;
+  simulationTime: string;
+  status: OpenClawExecutionProof["status"];
+}) => {
+  if (status === "local_fallback") {
+    return `OpenClaw runtime was unavailable; local fallback completed one replay step at ${formatProofDate(simulationTime)} with ${eventCount} agent events.`;
+  }
+  if (status === "remote_failed") {
+    return `OpenClaw on Dedalus could not complete the requested replay step.`;
+  }
+  return `OpenClaw on Dedalus completed one replay step at ${formatProofDate(simulationTime)} with ${eventCount} agent events.`;
+};
+
+const createOpenClawProof = ({
+  command,
+  completedAt = nowIso(),
+  error = null,
+  eventCount,
+  executionId,
+  executionMode,
+  simulationTime,
+  startedAt,
+  status,
+}: {
+  command: OpenClawStepCommand;
+  completedAt?: string;
+  error?: string | null;
+  eventCount: number;
+  executionId: string | null;
+  executionMode: FullAutoExecutionMode;
+  simulationTime: string;
+  startedAt: string;
+  status: OpenClawExecutionProof["status"];
+}): OpenClawExecutionProof => {
+  const sanitizedError = error ? redactDedalusText(error) : null;
+  return {
+    command,
+    completedAt,
+    error: sanitizedError,
+    eventCount,
+    executionId,
+    executionMode,
+    id: proofId(),
+    simulationTime,
+    startedAt,
+    status,
+    summaryLine: proofSummaryLine({
+      eventCount,
+      simulationTime,
+      status,
+    }),
+  };
+};
+
+const withOpenClawProof = (
+  proof: DedalusRuntimeProof,
+  openclawProof: OpenClawExecutionProof,
+): DedalusRuntimeProof => {
+  const proofs = [openclawProof, ...proof.openClawProofs]
+    .filter(isOpenClawProof)
+    .slice(0, 3);
+  return {
+    ...proof,
+    latestOpenClawProof: proofs[0] ?? openclawProof,
+    openClawProofs: proofs,
+  };
+};
+
+export const recordLocalOpenClawFallbackProof = async ({
+  command,
+  error,
+  previousRun,
+  run,
+}: {
+  command: OpenClawStepCommand;
+  error: unknown;
+  previousRun: FullAutoRun;
+  run: FullAutoRun;
+}) => {
+  const state = await loadDedalusRuntimeState();
+  const startedAt = nowIso();
+  const openclawProof = createOpenClawProof({
+    command,
+    error: redactDedalusText(error),
+    eventCount: Math.max(0, run.agentEvents.length - previousRun.agentEvents.length),
+    executionId: null,
+    executionMode: "hybrid",
+    simulationTime: run.simulationTime,
+    startedAt,
+    status: "local_fallback",
+  });
+  const proof = withOpenClawProof(proofFromRun(run, state.proof), openclawProof);
+  await saveDedalusRuntimeState({
+    ...state,
+    error: redactDedalusText(error),
+    phase: "error",
+    proof,
+  });
+  return openclawProof;
+};
 
 export const pingDedalusApi = async () => {
   const state = await loadDedalusRuntimeState();
@@ -419,7 +724,7 @@ export const createDedalusMachine = async () => {
     phase: "machine_creating",
   });
   try {
-    const created = await dcsClient().post<DcsMachineResponse>("/machines", {
+    const created = await dcsClient().post<DcsMachineResponse>(`${DCS_API_PREFIX}/machines`, {
       body: {
         memory_mib: 4096,
         storage_gib: 10,
@@ -470,6 +775,7 @@ export const bootstrapDedalusOpenClaw = async () => {
         "mkdir -p /home/machine/.npm-global /home/machine/.npm-cache /home/machine/.tmp /home/machine/.openclaw /home/machine/.compile-cache /home/machine/citadail/state && " +
         "if ! command -v node >/dev/null 2>&1; then curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null 2>&1 && apt-get install -y nodejs >/dev/null 2>&1; fi && " +
         "if ! command -v openclaw >/dev/null 2>&1; then NPM_CONFIG_PREFIX=/home/machine/.npm-global NPM_CONFIG_CACHE=/home/machine/.npm-cache TMPDIR=/home/machine/.tmp npm install -g openclaw@latest >/dev/null 2>&1; fi && " +
+        "cd /home/machine/citadail && if [ ! -x ./node_modules/.bin/tsx ]; then NPM_CONFIG_CACHE=/home/machine/.npm-cache TMPDIR=/home/machine/.tmp npm install tsx typescript >/dev/null 2>&1; fi && " +
         "export PATH=/home/machine/.npm-global/bin:$PATH && export HOME=/home/machine && export OPENCLAW_STATE_DIR=/home/machine/.openclaw && openclaw --version",
       machineId,
       timeoutMs: 240000,
@@ -508,11 +814,13 @@ export const syncFullAutoRunToDedalus = async (run: FullAutoRun) => {
     error: null,
     phase: "syncing",
   });
-  const proof = proofFromRun(run);
+  const proof = proofFromRun(run, state.proof);
   const runtimeStatus = {
     activeTheses: proof.activeTheses,
     journalEntries: proof.journalEntries,
     lastSyncedAt: proof.lastSyncedAt,
+    latestOpenClawProof: proof.latestOpenClawProof,
+    openClawProofs: proof.openClawProofs,
     paperOnly: true,
     persistedSimulationTime: proof.persistedSimulationTime,
     source: "Citadail Full Auto",
@@ -587,8 +895,11 @@ export const checkDedalusOpenClawHealth = async () => {
 export const sleepDedalusMachine = async () => {
   const { machineId, state } = await requireMachineId();
   try {
-    await dcsClient().post<unknown>(`/machines/${machineId}/sleep`, {
-      body: { machine_id: machineId },
+    await dcsClient().patch<unknown>(`${DCS_API_PREFIX}/machines/${machineId}`, {
+      body: {
+        desired_state: "sleeping",
+        machine_id: machineId,
+      },
       timeout: 12000,
     });
     return runtimeStatusFromState(
@@ -610,11 +921,141 @@ export const sleepDedalusMachine = async () => {
   }
 };
 
+export const isOpenClawStepCommand = (
+  value: unknown,
+): value is OpenClawStepCommand =>
+  value === "start" || value === "step" || value === "pause";
+
+const isFullAutoRunShape = (value: unknown): value is FullAutoRun => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<FullAutoRun>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.simulationTime === "string" &&
+    typeof candidate.status === "string" &&
+    Array.isArray(candidate.agentEvents) &&
+    Array.isArray(candidate.thesisRecords) &&
+    Array.isArray(candidate.paperPositions) &&
+    Array.isArray(candidate.journal) &&
+    Boolean(candidate.portfolio && typeof candidate.portfolio === "object")
+  );
+};
+
+export const runOpenClawStepOnDedalus = async ({
+  command,
+  run,
+}: {
+  command: OpenClawStepCommand;
+  run: FullAutoRun;
+}): Promise<{
+  proof: OpenClawExecutionProof;
+  run: FullAutoRun;
+  runtime: DedalusRuntimeStatus;
+}> => {
+  if (!isOpenClawStepCommand(command)) {
+    throw new Error("Invalid OpenClaw step command.");
+  }
+  const { machineId, state } = await requireMachineId();
+  const startedAt = nowIso();
+  const executionId = `openclaw-step-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+  let next = await saveDedalusRuntimeState({
+    ...state,
+    error: null,
+    phase: "syncing",
+  });
+  try {
+    await uploadOpenClawStepRuntime(machineId);
+    await writeMachineFile({
+      content: JSON.stringify(
+        {
+          command,
+          executionId,
+          previousProofs: next.proof.openClawProofs,
+          run,
+          startedAt,
+        },
+        null,
+        2,
+      ),
+      machineId,
+      remotePath: OPENCLAW_INPUT_PATH,
+    });
+    const output = await machineExec({
+      command:
+        "cd /home/machine/citadail && " +
+        "export PATH=/home/machine/.npm-global/bin:$PATH && export HOME=/home/machine && export OPENCLAW_STATE_DIR=/home/machine/.openclaw && " +
+        "(openclaw --version >/home/machine/citadail/state/openclaw-version.txt 2>&1 || /home/machine/.npm-global/bin/openclaw --version >/home/machine/citadail/state/openclaw-version.txt 2>&1) && " +
+        "if [ ! -x ./node_modules/.bin/tsx ]; then NPM_CONFIG_CACHE=/home/machine/.npm-cache TMPDIR=/home/machine/.tmp npm install tsx typescript >/dev/null 2>&1; fi && " +
+        "./node_modules/.bin/tsx ./openclaw-step-worker.ts",
+      machineId,
+      timeoutMs: 120000,
+    });
+    const payload = JSON.parse(output.split("\n").at(-1) ?? "{}") as {
+      proof?: unknown;
+      run?: unknown;
+    };
+    if (!isFullAutoRunShape(payload.run)) {
+      throw new Error("OpenClaw worker returned an invalid Full Auto run.");
+    }
+    if (!isOpenClawProof(payload.proof)) {
+      throw new Error("OpenClaw worker returned an invalid proof object.");
+    }
+    const proof = payload.proof;
+    const mergedProof = withOpenClawProof(
+      proofFromRun(payload.run, next.proof),
+      proof,
+    );
+    next = await saveDedalusRuntimeState({
+      ...next,
+      error: null,
+      openclaw: {
+        checkedAt: nowIso(),
+        detail: proof.summaryLine,
+        health: "healthy",
+      },
+      phase: "runtime_ready",
+      proof: mergedProof,
+    });
+    return {
+      proof,
+      run: payload.run,
+      runtime: runtimeStatusFromState(next),
+    };
+  } catch (error) {
+    const failedProof = createOpenClawProof({
+      command,
+      error: redactDedalusText(error),
+      eventCount: 0,
+      executionId,
+      executionMode: "dedalus_openclaw",
+      simulationTime: run.simulationTime,
+      startedAt,
+      status: "remote_failed",
+    });
+    next = await saveDedalusRuntimeState({
+      ...next,
+      error: redactDedalusText(error),
+      openclaw: {
+        checkedAt: nowIso(),
+        detail: "OpenClaw step execution failed.",
+        health: "error",
+      },
+      phase: "error",
+      proof: withOpenClawProof(next.proof, failedProof),
+    });
+    throw new Error(redactDedalusText(error));
+  }
+};
+
 export const runDedalusRuntimeAction = async ({
   action,
+  command,
   run,
 }: {
   action: DedalusRuntimeAction;
+  command?: OpenClawStepCommand;
   run?: FullAutoRun;
 }) => {
   if (action === "ping_api") return pingDedalusApi();
@@ -625,6 +1066,14 @@ export const runDedalusRuntimeAction = async ({
   if (action === "sync_full_auto_run") {
     if (!run) throw new Error("Full Auto run is required for Dedalus sync.");
     return syncFullAutoRunToDedalus(run);
+  }
+  if (action === "run_openclaw_step") {
+    if (!run) throw new Error("Full Auto run is required for OpenClaw execution.");
+    if (!isOpenClawStepCommand(command)) {
+      throw new Error("OpenClaw step command must be start, step, or pause.");
+    }
+    const result = await runOpenClawStepOnDedalus({ command, run });
+    return result.runtime;
   }
   throw new Error("Unsupported Dedalus runtime action.");
 };
@@ -678,6 +1127,9 @@ export const formatDedalusRuntimeForPm = (status: DedalusRuntimeStatus) => {
     machine,
     openclaw,
     sync,
+    status.proof.latestOpenClawProof?.summaryLine
+      ? `Latest execution: ${status.proof.latestOpenClawProof.summaryLine}`
+      : "Latest execution: no OpenClaw step proof yet.",
     `Paper book: ${status.proof.activeTheses} active theses, ${status.proof.journalEntries} journal entries.`,
     "Paper portfolio only. No live execution.",
   ].join("\n");

@@ -24,6 +24,10 @@ const statePath = path.join(
   os.tmpdir(),
   `citadail-spectrum-test-${process.pid}.json`,
 );
+const dedalusStatePath = path.join(
+  os.tmpdir(),
+  `citadail-spectrum-dedalus-test-${process.pid}.json`,
+);
 
 const command = (
   type: CitadailSpectrumCommand["type"],
@@ -40,8 +44,12 @@ const command = (
 
 describe("Citadail Spectrum integration", () => {
   beforeEach(async () => {
+    delete process.env.DEDALUS_API_KEY;
+    delete process.env.DEDALUS_MACHINE_ID;
     process.env.CITADAIL_SPECTRUM_STATE_PATH = statePath;
+    process.env.CITADAIL_DEDALUS_STATE_PATH = dedalusStatePath;
     await rm(statePath, { force: true });
+    await rm(dedalusStatePath, { force: true });
     await resetSpectrumDeskState();
   });
 
@@ -95,6 +103,16 @@ describe("Citadail Spectrum integration", () => {
         spaceId: "chat-1",
       }),
     ).toMatchObject({ ticker: "AAPL", type: "news" });
+
+    expect(
+      parseCitadailSpectrumCommand({
+        isGroup: true,
+        messageId: "6",
+        rawText: "Citadail run machine step",
+        senderId: "pm-1",
+        spaceId: "chat-1",
+      }),
+    ).toMatchObject({ type: "run_machine_step" });
   });
 
   it("enforces sender and space allowlists", () => {
@@ -134,6 +152,14 @@ describe("Citadail Spectrum integration", () => {
 
     const response = await runCitadailSpectrumCommand(command("runtime"));
     expect(response.text).toContain("Runtime");
+    expect(response.text).toContain("Paper portfolio only");
+  });
+
+  it("returns a PM-friendly error when machine-backed stepping is unavailable", async () => {
+    const response = await runCitadailSpectrumCommand(command("run_machine_step"));
+
+    expect(response.kind).toBe("error");
+    expect(response.text).toContain("Machine-backed step did not complete");
     expect(response.text).toContain("Paper portfolio only");
   });
 

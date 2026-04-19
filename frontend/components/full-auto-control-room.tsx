@@ -12,10 +12,7 @@ import {
 } from "@/lib/full-auto-storage";
 import { openThesisRecordInSession } from "@/lib/full-auto-session-bridge";
 import { cn } from "@/lib/utils";
-import type {
-  DedalusRuntimeAction,
-  DedalusRuntimeStatus,
-} from "@/types/dedalus-runtime";
+import type { DedalusRuntimeStatus } from "@/types/dedalus-runtime";
 import type {
   FullAutoAgentEvent,
   FullAutoAgentRole,
@@ -355,9 +352,6 @@ export default function FullAutoControlRoom() {
   const [activityCursor, setActivityCursor] = useState(0);
   const [dedalusRuntime, setDedalusRuntime] =
     useState<DedalusRuntimeStatus | null>(null);
-  const [dedalusAction, setDedalusAction] = useState<DedalusRuntimeAction | null>(
-    null,
-  );
 
   const openPositions = useMemo(
     () => run?.paperPositions.filter((position) => position.status === "open") ?? [],
@@ -602,6 +596,7 @@ export default function FullAutoControlRoom() {
       null
     );
   }, [currentFocus?.ticker, run]);
+  const latestOpenClawProof = dedalusRuntime?.proof.latestOpenClawProof ?? null;
 
   const loadDedalusRuntime = useCallback(async () => {
     try {
@@ -625,7 +620,11 @@ export default function FullAutoControlRoom() {
       const response = await fetch("/api/full-auto/step", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, run }),
+        body: JSON.stringify({
+          command,
+          executionMode: "hybrid",
+          run,
+        }),
       });
       const payload = (await response.json()) as {
         success?: boolean;
@@ -650,40 +649,6 @@ export default function FullAutoControlRoom() {
       setIsStepping(false);
     }
   }, [isStepping, loadDedalusRuntime, run]);
-
-  const runDedalusAction = useCallback(
-    async (action: DedalusRuntimeAction) => {
-      if (dedalusAction) return;
-      setDedalusAction(action);
-      try {
-        const response = await fetch("/api/dedalus/runtime", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action,
-            run: action === "sync_full_auto_run" ? run : undefined,
-          }),
-        });
-        const payload = (await response.json()) as {
-          success?: boolean;
-          runtime?: DedalusRuntimeStatus | null;
-          error?: string;
-        };
-        if (payload.runtime) {
-          setDedalusRuntime(payload.runtime);
-        } else if (!response.ok) {
-          setDedalusRuntime((current) =>
-            current
-              ? { ...current, error: payload.error ?? "Dedalus action failed.", phase: "error" }
-              : current,
-          );
-        }
-      } finally {
-        setDedalusAction(null);
-      }
-    },
-    [dedalusAction, run],
-  );
 
   useEffect(() => {
     const cachedRun = getOrCreateLatestFullAutoRun();
@@ -939,6 +904,11 @@ export default function FullAutoControlRoom() {
                   title="Current Focus"
                   detail="What the desk is working on right now."
                 />
+                {latestOpenClawProof?.status === "remote_success" ? (
+                  <div className="mt-4 inline-flex rounded border border-[#b9c7da] bg-[#eef3fb] px-2.5 py-1 text-xs font-semibold text-[#0a2259]">
+                    Executed by OpenClaw on Dedalus
+                  </div>
+                ) : null}
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   <Metric label="Ticker" value={currentFocus?.ticker ?? "Market"} />
                   <Metric label="Phase" value={activeWorkflowStage} />
@@ -1087,13 +1057,6 @@ export default function FullAutoControlRoom() {
           </div>
 
           <div className="space-y-4">
-            <DedalusRuntimeCard
-              action={dedalusAction}
-              onAction={runDedalusAction}
-              run={run}
-              runtime={dedalusRuntime}
-            />
-
             <Panel>
               <SectionTitle title="Risk Limits / Book State" detail={run.strategyProfile} />
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -1199,143 +1162,6 @@ const Metric = ({ label, value }: { label: string; value: string }) => (
     <p className="mt-1 text-xl font-semibold">{value}</p>
   </div>
 );
-
-const dedalusPhaseLabel = (runtime: DedalusRuntimeStatus | null) => {
-  if (!runtime) return "Checking";
-  if (!runtime.configured) return "Unconfigured";
-  return titleCaseStatus(runtime.phase);
-};
-
-const DedalusRuntimeCard = ({
-  action,
-  onAction,
-  run,
-  runtime,
-}: {
-  action: DedalusRuntimeAction | null;
-  onAction: (action: DedalusRuntimeAction) => void;
-  run: FullAutoRun;
-  runtime: DedalusRuntimeStatus | null;
-}) => {
-  const attachAction: DedalusRuntimeAction = runtime?.machine.id
-    ? "ping_api"
-    : "create_machine";
-  const machineLabel = runtime?.machine.id
-    ? titleCaseStatus(runtime.machine.phase ?? "attached")
-    : "Not Attached";
-  const openclawLabel = runtime?.openclaw.health
-    ? titleCaseStatus(runtime.openclaw.health)
-    : "Unknown";
-  const syncLabel = runtime?.proof.lastSyncedAt ? "Current" : "Not Synced";
-  const persistedDate = runtime?.proof.persistedSimulationTime
-    ? fmtDate(runtime.proof.persistedSimulationTime)
-    : "n/a";
-  const lastSync = runtime?.proof.lastSyncedAt
-    ? new Date(runtime.proof.lastSyncedAt).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "n/a";
-
-  const buttonClass =
-    "rounded-md border border-[#d9e0e8] bg-white px-2.5 py-2 text-xs font-semibold text-[#0a2259] shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300";
-
-  return (
-    <Panel>
-      <div className="flex items-start justify-between gap-3">
-        <SectionTitle
-          title="Dedalus Runtime"
-          detail="Machine-backed desk state. Paper only."
-        />
-        <span
-          className={cn(
-            "rounded border px-2 py-1 text-xs font-semibold",
-            runtime?.phase === "runtime_ready" &&
-              "border-emerald-200 bg-emerald-50 text-emerald-700",
-            runtime?.phase === "syncing" &&
-              "border-blue-200 bg-blue-50 text-blue-700",
-            runtime?.phase === "error" && "border-red-200 bg-red-50 text-red-700",
-            (!runtime || runtime.phase === "unconfigured") &&
-              "border-slate-200 bg-slate-50 text-slate-600",
-          )}
-        >
-          {action ? "Working" : dedalusPhaseLabel(runtime)}
-        </span>
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <Metric label="Runtime" value={runtime?.machine.id ? "Machine-backed" : "Local"} />
-        <Metric label="Machine" value={machineLabel} />
-        <Metric label="OpenClaw" value={openclawLabel} />
-        <Metric label="Sync" value={syncLabel} />
-      </div>
-
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Metric label="Persisted Date" value={persistedDate} />
-        <Metric label="Last Synced" value={lastSync} />
-        <Metric
-          label="Active Theses"
-          value={`${runtime?.proof.activeTheses ?? run.thesisRecords.length}`}
-        />
-        <Metric
-          label="Journal Entries"
-          value={`${runtime?.proof.journalEntries ?? run.journal.length}`}
-        />
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          className={buttonClass}
-          disabled={Boolean(action)}
-          onClick={() => onAction(attachAction)}
-        >
-          {runtime?.machine.id ? "Attach Runtime" : "Create Runtime"}
-        </button>
-        <button
-          type="button"
-          className={buttonClass}
-          disabled={Boolean(action) || !runtime?.machine.id}
-          onClick={() => onAction("bootstrap_machine")}
-        >
-          Bootstrap
-        </button>
-        <button
-          type="button"
-          className={buttonClass}
-          disabled={Boolean(action) || !runtime?.machine.id}
-          onClick={() => onAction("sync_full_auto_run")}
-        >
-          Sync Run
-        </button>
-        <button
-          type="button"
-          className={buttonClass}
-          disabled={Boolean(action) || !runtime?.machine.id}
-          onClick={() => onAction("openclaw_health")}
-        >
-          Check Health
-        </button>
-        <button
-          type="button"
-          className={cn(buttonClass, "col-span-2")}
-          disabled={Boolean(action) || !runtime?.machine.id}
-          onClick={() => onAction("sleep_machine")}
-        >
-          Sleep
-        </button>
-      </div>
-
-      {runtime?.error ? (
-        <p className="mt-3 text-sm leading-6 text-red-700">{runtime.error}</p>
-      ) : (
-        <p className="mt-3 text-sm leading-6 text-slate-500">
-          Dedalus persists the desk state across sessions; local replay remains the fallback.
-        </p>
-      )}
-    </Panel>
-  );
-};
 
 const ValidationCard = ({
   validation,

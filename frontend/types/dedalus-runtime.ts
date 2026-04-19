@@ -1,5 +1,28 @@
 import type { FullAutoRun } from "@/types/full-auto";
 
+export type FullAutoExecutionMode = "local" | "hybrid" | "dedalus_openclaw";
+
+export type OpenClawStepCommand = "start" | "step" | "pause";
+
+export type OpenClawExecutionStatus =
+  | "remote_success"
+  | "local_fallback"
+  | "remote_failed";
+
+export interface OpenClawExecutionProof {
+  id: string;
+  command: OpenClawStepCommand;
+  completedAt: string;
+  error: string | null;
+  eventCount: number;
+  executionId: string | null;
+  executionMode: FullAutoExecutionMode;
+  simulationTime: string;
+  startedAt: string;
+  status: OpenClawExecutionStatus;
+  summaryLine: string;
+}
+
 export type DedalusRuntimePhase =
   | "unconfigured"
   | "api_connected"
@@ -18,6 +41,7 @@ export type DedalusRuntimeAction =
   | "create_machine"
   | "bootstrap_machine"
   | "sync_full_auto_run"
+  | "run_openclaw_step"
   | "openclaw_health"
   | "sleep_machine";
 
@@ -31,6 +55,8 @@ export interface DedalusRuntimeProof {
   activeTheses: number;
   journalEntries: number;
   lastSyncedAt: string | null;
+  latestOpenClawProof: OpenClawExecutionProof | null;
+  openClawProofs: OpenClawExecutionProof[];
   persistedSimulationTime: string | null;
 }
 
@@ -53,5 +79,6 @@ export interface DedalusRuntimeStatus {
 
 export interface DedalusRuntimeActionBody {
   action: DedalusRuntimeAction;
+  command?: OpenClawStepCommand;
   run?: FullAutoRun;
 }

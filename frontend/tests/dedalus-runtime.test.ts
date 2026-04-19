@@ -11,8 +11,10 @@ import {
 import {
   getDedalusRuntimeStatus,
   isDedalusRuntimeAction,
+  recordLocalOpenClawFallbackProof,
   redactDedalusText,
 } from "@/lib/dedalus-runtime";
+import { createFullAutoRun, stepFullAutoRun } from "@/lib/full-auto-orchestrator";
 
 const statePath = path.join(
   os.tmpdir(),
@@ -55,6 +57,7 @@ describe("Dedalus runtime", () => {
 
   it("validates allowed runtime actions", () => {
     expect(isDedalusRuntimeAction("sync_full_auto_run")).toBe(true);
+    expect(isDedalusRuntimeAction("run_openclaw_step")).toBe(true);
     expect(isDedalusRuntimeAction("arbitrary_shell")).toBe(false);
   });
 
@@ -76,5 +79,45 @@ describe("Dedalus runtime", () => {
     expect(response.status).toBe(400);
     expect(payload.success).toBe(false);
     expect(payload.error).toMatch(/invalid/i);
+  });
+
+  it("keeps the latest three OpenClaw proofs and redacts fallback errors", async () => {
+    let previousRun = createFullAutoRun();
+    for (let index = 0; index < 4; index += 1) {
+      const run = await stepFullAutoRun({
+        command: index === 0 ? "start" : "step_event",
+        run: previousRun,
+      });
+      await recordLocalOpenClawFallbackProof({
+        command: "step",
+        error: `remote failed with dsk-fake-secret-${index}`,
+        previousRun,
+        run,
+      });
+      previousRun = run;
+    }
+
+    const status = await getDedalusRuntimeStatus();
+    expect(status.proof.openClawProofs).toHaveLength(3);
+    expect(status.proof.latestOpenClawProof?.status).toBe("local_fallback");
+    expect(status.proof.latestOpenClawProof?.summaryLine).toContain(
+      "local fallback",
+    );
+    expect(status.proof.latestOpenClawProof?.error).not.toContain("secret");
+  });
+
+  it("rejects malformed OpenClaw step requests", async () => {
+    const response = await dedalusPost(
+      request({
+        action: "run_openclaw_step",
+        command: "rewind",
+        run: createFullAutoRun(),
+      }) as never,
+    );
+    const payload = (await response.json()) as { success: boolean; error: string };
+
+    expect(response.status).toBe(503);
+    expect(payload.success).toBe(false);
+    expect(payload.error).toMatch(/start, step, or pause/i);
   });
 });

@@ -17,6 +17,7 @@ export type CitadailSpectrumCommandType =
   | "stop_feed"
   | "pulse"
   | "runtime"
+  | "run_machine_step"
   | "approve"
   | "send_back"
   | "reject"
