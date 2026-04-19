@@ -1,0 +1,80 @@
+"use client";
+
+import { motion } from "framer-motion";
+
+import { cn } from "@/lib/utils";
+
+export interface SignalToast {
+  id: string;
+  title: string;
+  detail?: string;
+  tone?: "navy" | "green" | "amber";
+}
+
+const toneClass: Record<NonNullable<SignalToast["tone"]>, string> = {
+  amber: "border-amber-200 bg-amber-50 text-amber-900",
+  green: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  navy: "border-[#b9c7da] bg-[#eef3fb] text-[#0a2259]",
+};
+
+const dotClass: Record<NonNullable<SignalToast["tone"]>, string> = {
+  amber: "bg-amber-500",
+  green: "bg-emerald-600",
+  navy: "bg-[#0a2259]",
+};
+
+export default function SignalToastStack({
+  className,
+  signals,
+}: {
+  className?: string;
+  signals: SignalToast[];
+}) {
+  if (!signals.length) return null;
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none fixed right-5 top-5 z-[80] flex w-[min(360px,calc(100vw-2rem))] flex-col items-end gap-2",
+        className,
+      )}
+    >
+      {signals.slice(0, 4).map((signal, index) => {
+        const tone = signal.tone ?? "navy";
+        return (
+          <motion.div
+            key={signal.id}
+            className={cn(
+              "w-fit max-w-full border px-3 py-2 shadow-sm backdrop-blur",
+              toneClass[tone],
+            )}
+            initial={{ opacity: 0, x: 18, y: -6 }}
+            animate={{ opacity: 1, x: 0, y: 0 }}
+            transition={{
+              delay: index * 0.06,
+              duration: 0.24,
+              ease: "easeOut",
+            }}
+          >
+            <div className="flex min-w-0 items-start gap-2">
+              <span
+                aria-hidden
+                className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", dotClass[tone])}
+              />
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold uppercase tracking-[0.14em]">
+                  {signal.title}
+                </p>
+                {signal.detail ? (
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 opacity-75">
+                    {signal.detail}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}

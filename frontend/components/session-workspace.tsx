@@ -11,6 +11,9 @@ import LiveBookTab from "@/components/live-book-tab";
 import MorningBrief from "@/components/morning-brief";
 import PmReviewTab from "@/components/pm-review-tab";
 import RiskGateTab from "@/components/risk-gate-tab";
+import SignalToastStack, {
+  type SignalToast,
+} from "@/components/signal-toast-stack";
 import ThesisTab from "@/components/thesis-tab";
 import TradeDeskTab from "@/components/trade-desk-tab";
 import { SessionTranscriptPanel } from "@/components/session-transcript-panel";
@@ -779,6 +782,19 @@ export default function SessionWorkspace({
   )
     ? activeProjectArtifactType
     : null;
+  const signalToasts = useMemo<SignalToast[]>(() => {
+    const project = activeSession?.snapshot.equityProject;
+    if (!project || project.status !== "ready") return [];
+
+    return [
+      {
+        id: `delivered-pm-${project.id}`,
+        title: "Delivered to PM",
+        detail: `${project.ticker} memo, model, and PM deck are ready for review.`,
+        tone: "green",
+      },
+    ];
+  }, [activeSession?.snapshot.equityProject]);
 
   const conversationContext = useCallback(() => {
     const recentTranscript = activeSessionRef.current?.snapshot.transcript
@@ -855,6 +871,7 @@ export default function SessionWorkspace({
 
   return (
     <div className="flex h-screen min-h-0 overflow-hidden bg-white">
+      <SignalToastStack className="right-14 top-14" signals={signalToasts} />
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex h-11 shrink-0 items-end justify-between border-b border-slate-300 bg-[#edf1f5] px-2 pt-1">
           <div className="flex min-w-0 flex-1 items-end gap-1 overflow-hidden">

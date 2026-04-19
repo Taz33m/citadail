@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 
 import EquityLineChart from "@/components/equity-line-chart";
+import SignalToastStack, {
+  type SignalToast,
+} from "@/components/signal-toast-stack";
 import {
   getOrCreateLatestFullAutoRun,
   resetFullAutoRuns,
@@ -272,6 +275,11 @@ const journalEntriesForDisplay = (run: FullAutoRun) => {
     .map((entry) => ({ ...entry, body: displayDeskCopy(entry.body) }))
     .filter((entry) => entry.body)
     .slice(0, 10);
+};
+
+const cleanSignalDetail = (value: string | null | undefined, max = 96) => {
+  const cleaned = displayDeskCopy(value);
+  return cleaned.length > max ? `${cleaned.slice(0, max - 1).trim()}...` : cleaned;
 };
 
 const buildDeskScorecard = ({
@@ -689,6 +697,59 @@ export default function FullAutoControlRoom() {
     () => (run ? journalEntriesForDisplay(run) : []),
     [run],
   );
+  const signalToasts = useMemo<SignalToast[]>(() => {
+    if (!run) return [];
+    const signals: SignalToast[] = [];
+
+    if (latestOpenClawProof?.status === "remote_success") {
+      signals.push({
+        id: `openclaw-${latestOpenClawProof.executionId ?? latestOpenClawProof.id}`,
+        title: "Executed by OpenClaw on Dedalus",
+        detail:
+          latestOpenClawProof.summaryLine ??
+          `${fmtDate(latestOpenClawProof.simulationTime)} · ${latestOpenClawProof.eventCount} agent events`,
+        tone: "navy",
+      });
+    }
+
+    const imessageEntry = run.journal.find((entry) =>
+      /iMessage|PM group/i.test(`${entry.title} ${entry.body}`),
+    );
+    if (imessageEntry) {
+      signals.push({
+        id: `imessage-${imessageEntry.id}`,
+        title: "iMessage command / response",
+        detail: cleanSignalDetail(imessageEntry.body),
+        tone: "green",
+      });
+    }
+
+    const thesisBreakEntry =
+      run.journal.find((entry) =>
+        /Desk exited|thesis break|broken|guardrail/i.test(
+          `${entry.title} ${entry.body}`,
+        ),
+      ) ??
+      run.paperPositions.find(
+        (position) =>
+          position.thesisStatus === "broken" || position.status === "closed",
+      );
+    if (thesisBreakEntry) {
+      const isJournalEntry = "body" in thesisBreakEntry;
+      signals.push({
+        id: isJournalEntry
+          ? `audit-${thesisBreakEntry.id}`
+          : `audit-${thesisBreakEntry.id}`,
+        title: "Thesis-break audit logged",
+        detail: isJournalEntry
+          ? cleanSignalDetail(thesisBreakEntry.body)
+          : `${thesisBreakEntry.ticker} moved to ${titleCaseStatus(thesisBreakEntry.thesisStatus)}. Desk action: ${thesisBreakEntry.nextAction}.`,
+        tone: "amber",
+      });
+    }
+
+    return signals;
+  }, [latestOpenClawProof, run]);
 
   const loadDedalusRuntime = useCallback(async () => {
     try {
@@ -854,6 +915,7 @@ export default function FullAutoControlRoom() {
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] px-5 py-5 text-[#0a2259] sm:px-7">
+      <SignalToastStack signals={signalToasts} />
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[#d9e0e8] pb-5">
           <div>
