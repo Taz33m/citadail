@@ -60,9 +60,17 @@ const recLabel = (value: ThesisRecord["recommendation"]) =>
 
 const localizeReplayCopy = (value: string) =>
   value
-    .replace(/Replay mark:\s*/gi, "Visible update: ")
+    .replace(/Replay mark:\s*/gi, "")
     .replace(/\breplay mark\b/gi, "visible mark")
-    .replace(/\breplay tape\b/gi, "visible tape");
+    .replace(/\breplay tape\b/gi, "visible tape")
+    .replace(
+      /current replay boundary.*?live market data.*?claimed\.?/gi,
+      "",
+    )
+    .replace(
+      /present-day placeholder snapshot.*?live market data.*?claimed\.?/gi,
+      "",
+    );
 
 const compact = (value: string, max = 220) => {
   const clean = localizeReplayCopy(value).replace(/\s+/g, " ").trim();

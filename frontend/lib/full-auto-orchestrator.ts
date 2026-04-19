@@ -52,12 +52,12 @@ const uid = (prefix: string) =>
 
 const localizeReplayCopy = (value: string) =>
   value
-    .replace(/Replay mark:\s*/gi, "Visible update: ")
+    .replace(/Replay mark:\s*/gi, "")
     .replace(/\breplay mark\b/gi, "visible mark")
     .replace(/\breplay tape\b/gi, "visible tape")
     .replace(
-      /present-day placeholder snapshot for the walk-forward demo; live market data is not claimed\./gi,
-      "current replay boundary is visible; no live market data is claimed.",
+      /present-day placeholder snapshot.*?live market data.*?claimed\./gi,
+      "",
     );
 
 const clean = (value: string, max = 180) => {

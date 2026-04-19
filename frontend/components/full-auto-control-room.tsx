@@ -100,9 +100,31 @@ const recommendationLabel = (value: ThesisRecord["recommendation"] | null | unde
 
 const displayDeskCopy = (value: string | null | undefined) =>
   (value ?? "")
-    .replace(/Replay mark:\s*/gi, "Visible update: ")
+    .replace(/Replay mark:\s*/gi, "")
     .replace(/\breplay mark\b/gi, "visible mark")
-    .replace(/\breplay tape\b/gi, "visible tape");
+    .replace(/\breplay tape\b/gi, "visible tape")
+    .replace(
+      /current replay boundary.*?live market data.*?claimed\.?/gi,
+      "",
+    )
+    .replace(
+      /present-day placeholder snapshot.*?live market data.*?claimed\.?/gi,
+      "",
+    )
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,;:])/g, "$1")
+    .trim();
+
+const deskCopyOrFallback = (
+  value: string | null | undefined,
+  fallback: string,
+) => {
+  const cleaned = displayDeskCopy(value);
+  if (!cleaned || /^[A-Z]{1,5}\s+(buy long|sell short|hold neutral):?$/i.test(cleaned)) {
+    return fallback;
+  }
+  return cleaned;
+};
 
 const candidatePriorityLabel = (score: number) => {
   if (score >= 7) return "High";
@@ -215,6 +237,44 @@ const contributionByTicker = (positions: FullAutoPaperPosition[]) =>
     .sort((left, right) => Math.abs(right.pnl) - Math.abs(left.pnl))
     .slice(0, 5);
 
+const journalEntriesForDisplay = (run: FullAutoRun) => {
+  const materialPattern =
+    /PM |Validation|Risk|Desk|Monitor|opened|added|trimmed|exited|approved|sent back|weakened|broken|recheck|re-underwrite/i;
+  const selected: FullAutoRun["journal"] = [];
+  const seen = new Set<string>();
+  let includedMorningBrief = false;
+
+  for (const entry of run.journal) {
+    const isMorningBrief = entry.title === "Morning Brief";
+    const isMaterial =
+      materialPattern.test(`${entry.title} ${entry.body}`) || isMorningBrief;
+
+    if (!isMaterial) continue;
+    if (isMorningBrief && includedMorningBrief) continue;
+
+    const body = displayDeskCopy(entry.body);
+    if (!body) continue;
+
+    const key = [
+      entry.title,
+      entry.relatedTicker ?? "market",
+      body.toLowerCase().replace(/\$[\d,]+/g, "$").slice(0, 90),
+    ].join("|");
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    if (isMorningBrief) includedMorningBrief = true;
+    selected.push({ ...entry, body });
+    if (selected.length >= 10) break;
+  }
+
+  if (selected.length) return selected;
+  return run.journal
+    .map((entry) => ({ ...entry, body: displayDeskCopy(entry.body) }))
+    .filter((entry) => entry.body)
+    .slice(0, 10);
+};
+
 const buildDeskScorecard = ({
   closedPositions,
   openPositions,
@@ -254,13 +314,25 @@ const buildDeskScorecard = ({
   const maxDrawdown = maxDrawdownFor(
     run.portfolio.equityCurve.map((point) => point.value),
   );
-  const winners = closedPositions.filter((position) => position.pnl > 0);
-  const losers = closedPositions.filter((position) => position.pnl < 0);
-  const winRate = closedPositions.length ? winners.length / closedPositions.length : null;
+  const allPositions = [...openPositions, ...closedPositions];
+  const markedPositions = allPositions.filter(
+    (position) =>
+      position.status === "closed" ||
+      Math.abs(position.pnl) >= 1 ||
+      Math.abs(position.currentPrice - position.entryPrice) >= 0.01,
+  );
+  const winners = markedPositions.filter((position) => position.pnl > 0);
+  const losers = markedPositions.filter((position) => position.pnl < 0);
+  const evaluatedPositions = winners.length + losers.length;
+  const winRate = evaluatedPositions ? winners.length / evaluatedPositions : null;
   const averageWinner = average(winners.map((position) => position.pnl));
   const averageLoser = average(losers.map((position) => Math.abs(position.pnl)));
   const winnerLoserRatio =
-    averageWinner && averageLoser ? averageWinner / averageLoser : null;
+    averageWinner && averageLoser
+      ? averageWinner / averageLoser
+      : averageWinner && !averageLoser
+        ? Number.POSITIVE_INFINITY
+        : null;
   const brokenThesisIds = new Set(
     run.thesisRecords
       .filter((record) => record.monitoringState === "broken")
@@ -303,7 +375,6 @@ const buildDeskScorecard = ({
     const exposurePct = point.value ? (point.grossExposure / point.value) * 100 : 0;
     return exposurePct > run.riskLimits.maxGrossExposurePct + 0.01;
   }).length;
-  const allPositions = [...openPositions, ...closedPositions];
   const avgHoldPeriod = average(
     allPositions.map((position) =>
       daysBetween(position.openedAt, position.closedAt ?? run.simulationTime),
@@ -597,6 +668,10 @@ export default function FullAutoControlRoom() {
     );
   }, [currentFocus?.ticker, run]);
   const latestOpenClawProof = dedalusRuntime?.proof.latestOpenClawProof ?? null;
+  const displayJournal = useMemo(
+    () => (run ? journalEntriesForDisplay(run) : []),
+    [run],
+  );
 
   const loadDedalusRuntime = useCallback(async () => {
     try {
@@ -962,13 +1037,16 @@ export default function FullAutoControlRoom() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <p className="font-mono text-sm font-semibold">{candidate.ticker}</p>
-                            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                            <div className="flex shrink-0 items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                               <span>{candidatePriorityLabel(candidate.score)}</span>
                               <span>{candidateActionLabel({ candidate, position, record })}</span>
                             </div>
                           </div>
                           <p className="text-sm leading-6 text-slate-600">
-                            {displayDeskCopy(candidate.reason)}
+                            {deskCopyOrFallback(
+                              candidate.reason,
+                              `${candidate.companyName} has a visible event that may deserve underwriting.`,
+                            )}
                           </p>
                         </div>
                       );
@@ -1006,7 +1084,10 @@ export default function FullAutoControlRoom() {
                             </p>
                           </div>
                           <p className="mt-2 text-sm leading-6 text-slate-600">
-                            {displayDeskCopy(record.oneLineThesis)}
+                            {deskCopyOrFallback(
+                              record.oneLineThesis,
+                              record.variantView.weBelieve,
+                            )}
                           </p>
                         </button>
                       );
@@ -1043,7 +1124,10 @@ export default function FullAutoControlRoom() {
                             </p>
                           </div>
                           <p className="mt-2 text-sm leading-6 text-slate-600">
-                            {displayDeskCopy(record.oneLineThesis)}
+                            {deskCopyOrFallback(
+                              record.oneLineThesis,
+                              record.variantView.weBelieve,
+                            )}
                           </p>
                         </button>
                       );
@@ -1112,15 +1196,15 @@ export default function FullAutoControlRoom() {
         <Panel className="mt-4">
           <SectionTitle title="Audit Journal" detail="Every material action gets logged." />
           <div className="mt-4 max-h-72 space-y-2 overflow-y-auto pr-1">
-            {run.journal.length ? (
-              run.journal.slice(0, 10).map((entry) => (
+            {displayJournal.length ? (
+              displayJournal.map((entry) => (
                 <div key={entry.id} className="border border-[#e1e6ee] px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold">{entry.title}</p>
                     <p className="text-xs text-slate-400">{fmtDate(entry.simulationTime)}</p>
                   </div>
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {displayDeskCopy(entry.body)}
+                    {entry.body}
                   </p>
                 </div>
               ))
@@ -1229,28 +1313,36 @@ const PositionCard = ({ position }: { position: FullAutoPaperPosition }) => {
   const awaitingNextMark =
     lastPriceKnownAt === position.openedAt &&
     position.currentPrice === position.entryPrice;
+  const actionLabel: Record<FullAutoPaperPosition["nextAction"], string> = {
+    Add: "Add",
+    Exit: "Exit",
+    Hold: "Hold",
+    Revisit: "Revisit",
+    Trim: "Trim",
+  };
 
   return (
     <div className="border border-[#e1e6ee] px-3 py-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="font-mono text-sm font-semibold">
           {position.ticker} {position.side.toUpperCase()}
         </p>
         <p
           className={cn(
-            "text-sm font-semibold",
+            "whitespace-nowrap text-sm font-semibold tabular-nums",
             position.pnl >= 0 ? "text-emerald-700" : "text-red-700",
           )}
         >
           {fmtMoney(position.pnl)} {fmtPct(position.returnPct)}
         </p>
       </div>
-      <p className="mt-1 text-xs text-slate-500">
-        Entry {position.entryPrice.toFixed(2)} / Current{" "}
-        {position.currentPrice.toFixed(2)} / {position.nextAction} /{" "}
-        {position.history.length} actions
-      </p>
-      <p className="mt-1 text-xs font-semibold text-slate-400">
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+        <PositionStat label="Entry" value={`$${position.entryPrice.toFixed(2)}`} />
+        <PositionStat label="Current" value={`$${position.currentPrice.toFixed(2)}`} />
+        <PositionStat label="Action" value={actionLabel[position.nextAction]} />
+        <PositionStat label="Events" value={`${position.history.length}`} />
+      </div>
+      <p className="mt-2 text-xs font-semibold text-slate-400">
         {awaitingNextMark
           ? "Awaiting next price mark"
           : `Marked ${fmtDate(lastPriceKnownAt)}`}
@@ -1258,6 +1350,17 @@ const PositionCard = ({ position }: { position: FullAutoPaperPosition }) => {
     </div>
   );
 };
+
+const PositionStat = ({ label, value }: { label: string; value: string }) => (
+  <div className="min-w-0 border border-[#edf1f5] bg-[#fbfcfe] px-2 py-1.5">
+    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+      {label}
+    </p>
+    <p className="mt-0.5 truncate font-semibold tabular-nums text-[#0a2259]">
+      {value}
+    </p>
+  </div>
+);
 
 const ActivityFeed = ({
   activeEventId,
@@ -1478,6 +1581,8 @@ const DeskScorecard = ({
           value={
             scorecard.winnerLoserRatio === null
               ? "n/a"
+              : scorecard.winnerLoserRatio === Number.POSITIVE_INFINITY
+                ? "No losers"
               : `${scorecard.winnerLoserRatio.toFixed(1)}x`
           }
         />
