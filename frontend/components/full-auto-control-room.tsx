@@ -643,6 +643,33 @@ export default function FullAutoControlRoom() {
       : activeThesis
         ? `${titleCaseStatus(activeThesis.pmDecision)} / ${titleCaseStatus(activeThesis.riskDecision)}`
         : titleCaseStatus(run.status);
+    const nextDecision = activePosition
+      ? ({
+          Add: "Check risk capacity before adding to the paper position.",
+          Exit: "Confirm thesis break and close the paper position.",
+          Hold: "Wait for the next visible catalyst or price mark.",
+          Revisit: "Re-underwrite before adding capital.",
+          Trim: "Reduce only if risk caps or thesis health require it.",
+        } satisfies Record<FullAutoPaperPosition["nextAction"], string>)[
+          activePosition.nextAction
+        ]
+      : activeThesis
+        ? "Decide whether this thesis deserves risk review."
+        : activeCandidate
+          ? "Decide whether this candidate deserves a workup."
+          : "Start the replay loop.";
+    const whyCurrent = activeThesis
+      ? deskCopyOrFallback(
+          activeThesis.variantView.whyNow || activeThesis.oneLineThesis,
+          activeThesis.variantView.weBelieve,
+        )
+      : activeCandidate
+        ? deskCopyOrFallback(
+            activeCandidate.reason,
+            `${activeCandidate.companyName} has a visible event that may deserve underwriting.`,
+          )
+        : displayDeskCopy(run.currentBrief?.headline) ||
+          "The desk is waiting for the next visible source.";
 
     return {
       ticker: activePosition?.ticker ?? activeThesis?.ticker ?? activeCandidate?.ticker ?? "Market",
@@ -654,6 +681,8 @@ export default function FullAutoControlRoom() {
         : "n/a",
       status,
       lastAction: latestMaterialAction?.title ?? activeEvent?.message ?? "Waiting to start.",
+      nextDecision,
+      whyCurrent,
     };
   }, [openPositions, run]);
   const currentValidation = useMemo(() => {
@@ -1001,6 +1030,24 @@ export default function FullAutoControlRoom() {
                     {currentFocus?.lastAction ?? "Waiting to start."}
                   </p>
                 </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="border border-[#e1e6ee] px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      Why Current
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      {currentFocus?.whyCurrent ?? "Waiting for a visible catalyst."}
+                    </p>
+                  </div>
+                  <div className="border border-[#e1e6ee] px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      Next Decision
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      {currentFocus?.nextDecision ?? "Start the desk loop."}
+                    </p>
+                  </div>
+                </div>
                 <ValidationCard validation={currentValidation} />
               </Panel>
             </div>
@@ -1336,7 +1383,7 @@ const PositionCard = ({ position }: { position: FullAutoPaperPosition }) => {
           {fmtMoney(position.pnl)} {fmtPct(position.returnPct)}
         </p>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+      <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
         <PositionStat label="Entry" value={`$${position.entryPrice.toFixed(2)}`} />
         <PositionStat label="Current" value={`$${position.currentPrice.toFixed(2)}`} />
         <PositionStat label="Action" value={actionLabel[position.nextAction]} />
@@ -1356,7 +1403,7 @@ const PositionStat = ({ label, value }: { label: string; value: string }) => (
     <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
       {label}
     </p>
-    <p className="mt-0.5 truncate font-semibold tabular-nums text-[#0a2259]">
+    <p className="mt-0.5 whitespace-nowrap text-[11px] font-semibold tabular-nums text-[#0a2259] sm:text-xs">
       {value}
     </p>
   </div>
@@ -1685,7 +1732,7 @@ const ScorecardTile = ({
     <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
     <p
       className={cn(
-        "mt-2 text-2xl font-semibold text-[#0a2259]",
+        "mt-2 break-words text-2xl font-semibold leading-tight text-[#0a2259]",
         tone === "positive" && "text-emerald-700",
         tone === "negative" && "text-red-700",
       )}

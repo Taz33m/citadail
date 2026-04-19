@@ -327,7 +327,7 @@ const expansionReplayPack = [
     "price",
     "Present replay mark",
     "2026-04-17T20:00:00.000Z",
-    `Replay mark: ${item.ticker} reached the configured replay endpoint with thesis health measured against the latest visible catalyst and price mark.`,
+    `Replay mark: Latest visible mark kept ${item.ticker} under review, with thesis health measured against the most recent catalyst and price evidence.`,
     { metrics: { price: item.marks[3] }, price: item.marks[3] },
   ),
 ]);
@@ -402,7 +402,7 @@ const coreReplaySources: HistoricalSource[] = [
     "price",
     "Present replay mark",
     "2026-04-17T20:00:00.000Z",
-    "Replay mark: Apple reached the configured replay endpoint with services durability, cash generation, China risk, and AI-device optionality still driving thesis health.",
+    "Replay mark: Latest visible mark kept Apple intact: services durability and cash generation still offset China risk and AI-device uncertainty.",
     { metrics: { price: 248.0 }, price: 248.0 },
   ),
   source(
@@ -433,7 +433,7 @@ const coreReplaySources: HistoricalSource[] = [
   source("MSFT", "price", "2022 drawdown replay mark", "2022-12-30T21:00:00.000Z", "Replay mark: Microsoft derated with software multiples while Azure durability remained the key thesis check.", { metrics: { price: 239.82 }, price: 239.82 }),
   source("MSFT", "price", "2023 AI/cloud replay mark", "2023-12-29T21:00:00.000Z", "Replay mark: Microsoft benefited from AI and cloud platform positioning, strengthening the original cloud durability thesis.", { metrics: { price: 376.04 }, price: 376.04 }),
   source("MSFT", "price", "2025 replay mark", "2025-12-31T21:00:00.000Z", "Replay mark: Microsoft remains tied to cloud, AI monetization, and margin discipline.", { metrics: { price: 485.0 }, price: 485.0 }),
-  source("MSFT", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Microsoft reached the configured replay endpoint with cloud durability, AI monetization, and margin discipline still anchoring thesis health.", { metrics: { price: 500.0 }, price: 500.0 }),
+  source("MSFT", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Latest visible mark kept Microsoft intact as cloud durability, AI monetization, and margin discipline remained load-bearing.", { metrics: { price: 500.0 }, price: 500.0 }),
   source(
     "NVDA",
     "filing",
@@ -462,7 +462,7 @@ const coreReplaySources: HistoricalSource[] = [
   source("NVDA", "price", "2022 semiconductor drawdown replay mark", "2022-12-30T21:00:00.000Z", "Replay mark: NVIDIA sold off as gaming normalized and semis derated; thesis health depended on data center persistence.", { metrics: { price: 146.14 }, price: 146.14 }),
   source("NVDA", "news", "2023 AI accelerator demand inflection", "2023-05-25T13:30:00.000Z", "NVIDIA reported a major AI data-center demand inflection, validating the accelerator-cycle thesis and creating an add/hold rather than exit signal.", { metrics: { price: 379.8 }, price: 379.8 }),
   source("NVDA", "price", "2025 replay mark", "2025-12-31T21:00:00.000Z", "Replay mark: NVIDIA remains the main AI accelerator exposure; position management should trim large gains but keep thesis-linked exposure while intact.", { metrics: { price: 140.0 }, price: 140.0 }),
-  source("NVDA", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: NVIDIA reached the configured replay endpoint with AI accelerator demand and concentration risk still determining position sizing.", { metrics: { price: 155.0 }, price: 155.0 }),
+  source("NVDA", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Latest visible mark kept NVIDIA active, but AI accelerator concentration risk still governed sizing discipline.", { metrics: { price: 155.0 }, price: 155.0 }),
   source(
     "TSLA",
     "news",
@@ -482,7 +482,7 @@ const coreReplaySources: HistoricalSource[] = [
   source("TSLA", "price", "2021 year-end replay mark", "2021-12-31T21:00:00.000Z", "Replay mark: Tesla's execution and delivery momentum challenged the short thesis; risk rules should force a thesis re-check or exit.", { metrics: { price: 352.26 }, price: 352.26 }),
   source("TSLA", "news", "2022 demand and margin pressure", "2022-12-30T21:00:00.000Z", "Tesla derated as demand elasticity, price cuts, and margin pressure became central. The short thesis regained support only after execution risk became visible.", { metrics: { price: 123.18 }, price: 123.18 }),
   source("TSLA", "price", "2025 replay mark", "2025-12-31T21:00:00.000Z", "Replay mark: Tesla remains volatile with autonomy optionality, margin pressure, and delivery cadence driving thesis health.", { metrics: { price: 315.0 }, price: 315.0 }),
-  source("TSLA", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Tesla reached the configured replay endpoint with margin pressure, delivery cadence, and autonomy optionality still challenging short-side risk control.", { metrics: { price: 300.0 }, price: 300.0 }),
+  source("TSLA", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Latest visible mark kept Tesla in risk review as margin pressure, delivery cadence, and autonomy optionality challenged short-side control.", { metrics: { price: 300.0 }, price: 300.0 }),
   source(
     "AMD",
     "filing",
@@ -502,7 +502,7 @@ const coreReplaySources: HistoricalSource[] = [
   source("AMD", "price", "2021 year-end replay mark", "2021-12-31T21:00:00.000Z", "Replay mark: AMD share-gain thesis continued as server and PC execution improved.", { metrics: { price: 143.9 }, price: 143.9 }),
   source("AMD", "price", "2022 drawdown replay mark", "2022-12-30T21:00:00.000Z", "Replay mark: AMD derated with PCs and semis, testing the share-gain thesis but not eliminating data center optionality.", { metrics: { price: 64.77 }, price: 64.77 }),
   source("AMD", "news", "2023 AI accelerator catch-up debate", "2023-12-29T21:00:00.000Z", "AMD rallied as the market began underwriting AI accelerator catch-up potential alongside the server CPU share thesis.", { metrics: { price: 147.41 }, price: 147.41 }),
-  source("AMD", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: AMD reached the configured replay endpoint with server share gains and AI accelerator catch-up still supporting thesis health.", { metrics: { price: 175.0 }, price: 175.0 }),
+  source("AMD", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Latest visible mark kept AMD intact as server share gains and AI accelerator catch-up still supported thesis health.", { metrics: { price: 175.0 }, price: 175.0 }),
   source(
     "NFLX",
     "news",
@@ -521,7 +521,7 @@ const coreReplaySources: HistoricalSource[] = [
   ),
   source("NFLX", "news", "2022 subscriber reset breaks pandemic pull-forward thesis", "2022-04-20T13:30:00.000Z", "Netflix reported subscriber weakness and reset the streaming growth narrative. Any thesis anchored only on pandemic pull-forward should be closed or shelved.", { metrics: { price: 226.19 }, price: 226.19 }),
   source("NFLX", "news", "2023 ad tier and password sharing recovery", "2023-12-29T21:00:00.000Z", "Netflix recovered as paid sharing and ad-tier execution shifted the debate from subscriber saturation to monetization discipline.", { metrics: { price: 486.88 }, price: 486.88 }),
-  source("NFLX", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Netflix reached the configured replay endpoint with paid sharing, ad-tier monetization, and content-spend discipline framing monitor status.", { metrics: { price: 720.0 }, price: 720.0 }),
+  source("NFLX", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Latest visible mark kept Netflix on monitor as paid sharing, ad-tier monetization, and content-spend discipline framed thesis health.", { metrics: { price: 720.0 }, price: 720.0 }),
   source(
     "META",
     "news",
@@ -540,7 +540,7 @@ const coreReplaySources: HistoricalSource[] = [
   ),
   source("META", "news", "2022 ad slowdown and metaverse spending break margin thesis", "2022-10-27T13:30:00.000Z", "Meta sold off after ad weakness and heavy metaverse spending pressured margins. The original ad recovery thesis weakened and required a risk-driven trim or exit.", { metrics: { price: 97.94 }, price: 97.94 }),
   source("META", "news", "2023 year of efficiency restores margin discipline", "2023-12-29T21:00:00.000Z", "Meta recovered after cost discipline and ad-market stabilization restored the margin thesis.", { metrics: { price: 353.96 }, price: 353.96 }),
-  source("META", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Meta reached the configured replay endpoint with ad recovery, cost discipline, AI spend, and regulatory risk driving thesis status.", { metrics: { price: 625.0 }, price: 625.0 }),
+  source("META", "price", "Present replay mark", "2026-04-17T20:00:00.000Z", "Replay mark: Latest visible mark kept Meta intact as ad recovery and cost discipline outweighed AI spend and regulatory risk for now.", { metrics: { price: 625.0 }, price: 625.0 }),
   source(
     "SPY",
     "macro",
@@ -559,7 +559,7 @@ const coreReplaySources: HistoricalSource[] = [
   ),
   source("SPY", "macro", "2022 rate shock replay regime", "2022-06-30T20:00:00.000Z", "Broad market risk deteriorated as inflation and rates compressed multiples. Risk Gate should reduce adds and consider trims on weakened theses.", { metrics: { price: 377.25, vix: 28.7 }, price: 377.25 }),
   source("SPY", "macro", "2023 risk appetite recovery replay regime", "2023-12-29T21:00:00.000Z", "Risk appetite recovered as mega-cap earnings and AI enthusiasm led the tape. Desk can hold winners while trimming excessive concentration.", { metrics: { price: 475.31, vix: 12.5 }, price: 475.31 }),
-  source("SPY", "macro", "Present replay regime", "2026-04-17T20:00:00.000Z", "Replay mark: Risk appetite reached the configured replay endpoint with mega-cap earnings, AI spend, and rate expectations framing gross exposure.", { metrics: { price: 570.0, vix: 17.0 }, price: 570.0 }),
+  source("SPY", "macro", "Present replay regime", "2026-04-17T20:00:00.000Z", "Replay mark: Latest visible macro mark left gross exposure tied to mega-cap earnings, AI spend, and rate expectations.", { metrics: { price: 570.0, vix: 17.0 }, price: 570.0 }),
 ];
 
 export const historicalSources: HistoricalSource[] = [
