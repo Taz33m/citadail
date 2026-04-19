@@ -8,8 +8,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import EquityLineChart from "@/components/equity-line-chart";
 import {
   getOrCreateLatestFullAutoRun,
+  resetFullAutoRuns,
   upsertFullAutoRun,
 } from "@/lib/full-auto-storage";
+import { stepFullAutoRun } from "@/lib/full-auto-orchestrator";
 import { openThesisRecordInSession } from "@/lib/full-auto-session-bridge";
 import { cn } from "@/lib/utils";
 import type { DedalusRuntimeStatus } from "@/types/dedalus-runtime";
@@ -707,25 +709,31 @@ export default function FullAutoControlRoom() {
     if (!run || isStepping) return;
     setIsStepping(true);
     try {
-      const response = await fetch("/api/full-auto/step", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          command,
-          executionMode: "hybrid",
-          run,
-        }),
-      });
-      const payload = (await response.json()) as {
-        success?: boolean;
-        run?: FullAutoRun;
-        error?: string;
-      };
-      if (!response.ok || !payload.success || !payload.run) {
-        throw new Error(payload.error ?? "Full Auto step failed.");
+      let nextRun: FullAutoRun | null = null;
+      try {
+        const response = await fetch("/api/full-auto/step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            command,
+            executionMode: "hybrid",
+            run,
+          }),
+        });
+        const payload = (await response.json()) as {
+          success?: boolean;
+          run?: FullAutoRun;
+          error?: string;
+        };
+        if (!response.ok || !payload.success || !payload.run) {
+          throw new Error(payload.error ?? "Full Auto step failed.");
+        }
+        nextRun = payload.run;
+      } catch {
+        nextRun = await stepFullAutoRun({ command, run });
       }
-      upsertFullAutoRun(payload.run);
-      setRun(payload.run);
+      upsertFullAutoRun(nextRun);
+      setRun(nextRun);
       void loadDedalusRuntime();
     } catch (error) {
       const failedRun = {
@@ -795,19 +803,9 @@ export default function FullAutoControlRoom() {
       }
       upsertFullAutoRun(payload.run);
       setRun(payload.run);
-    } catch (error) {
-      if (run) {
-        const failedRun = {
-          ...run,
-          status: "failed" as const,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Could not reset Full Auto run.",
-        };
-        upsertFullAutoRun(failedRun);
-        setRun(failedRun);
-      }
+    } catch {
+      const fallbackRun = resetFullAutoRuns();
+      setRun(fallbackRun);
     } finally {
       setIsStepping(false);
     }

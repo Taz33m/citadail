@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 :root {
+  --font-inter: "Inter";
+  --font-geist-mono: "SFMono-Regular";
+  --font-fraunces: "Times New Roman";
   --m3-primary: #0f172a;
   --m3-on-primary: #ffffff;
   --m3-primary-container: #e2e8f0;

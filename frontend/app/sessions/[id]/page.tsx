@@ -1,5 +1,9 @@
 import SessionWorkspace from "@/components/session-workspace";
 
+export function generateStaticParams() {
+  return [{ id: "demo" }];
+}
+
 interface SessionPageProps {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ title?: string | string[] }>;

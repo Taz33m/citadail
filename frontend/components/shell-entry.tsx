@@ -41,9 +41,10 @@ const outputs = [
 
 export default function ShellEntry() {
   const router = useRouter();
+  const isGithubPagesBuild = process.env.NEXT_PUBLIC_GITHUB_PAGES === "true";
 
   const startAssistMode = () => {
-    const sessionId = createSessionId();
+    const sessionId = isGithubPagesBuild ? "demo" : createSessionId();
     queuePendingShellSessionSeed({
       id: sessionId,
       title: "Citadail",
