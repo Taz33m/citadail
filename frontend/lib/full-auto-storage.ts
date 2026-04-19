@@ -94,8 +94,11 @@ export const getOrCreateLatestFullAutoRun = () => {
   return run;
 };
 
-export const resetFullAutoRuns = () => {
-  const run = createFullAutoRun();
+export const resetFullAutoRuns = (dateWindow?: {
+  startDate?: string | null;
+  endDate?: string | null;
+}) => {
+  const run = createFullAutoRun(dateWindow);
   saveFullAutoRuns([run]);
   return run;
 };

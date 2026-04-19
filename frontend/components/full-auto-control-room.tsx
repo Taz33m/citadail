@@ -14,7 +14,10 @@ import {
   resetFullAutoRuns,
   upsertFullAutoRun,
 } from "@/lib/full-auto-storage";
-import { stepFullAutoRun } from "@/lib/full-auto-orchestrator";
+import {
+  getFullAutoReplayBounds,
+  stepFullAutoRun,
+} from "@/lib/full-auto-orchestrator";
 import { openThesisRecordInSession } from "@/lib/full-auto-session-bridge";
 import { cn } from "@/lib/utils";
 import type { DedalusRuntimeStatus } from "@/types/dedalus-runtime";
@@ -35,6 +38,8 @@ const fmtDate = (value: string) =>
     year: "numeric",
     timeZone: "UTC",
   });
+
+const toDateInputValue = (value: string) => new Date(value).toISOString().slice(0, 10);
 
 const fmtMoney = (value: number) =>
   value.toLocaleString("en-US", {
@@ -428,8 +433,13 @@ export default function FullAutoControlRoom() {
   const [run, setRun] = useState<FullAutoRun | null>(null);
   const [isStepping, setIsStepping] = useState(false);
   const [activityCursor, setActivityCursor] = useState(0);
+  const [dateDraft, setDateDraft] = useState({ endDate: "", startDate: "" });
+  const [dateError, setDateError] = useState<string | null>(null);
   const [dedalusRuntime, setDedalusRuntime] =
     useState<DedalusRuntimeStatus | null>(null);
+  const replayBounds = useMemo(() => getFullAutoReplayBounds(), []);
+  const minReplayDate = toDateInputValue(replayBounds.minStartDate);
+  const maxReplayDate = toDateInputValue(replayBounds.maxEndDate);
 
   const openPositions = useMemo(
     () => run?.paperPositions.filter((position) => position.status === "open") ?? [],
@@ -838,6 +848,15 @@ export default function FullAutoControlRoom() {
   }, [loadDedalusRuntime]);
 
   useEffect(() => {
+    if (!run) return;
+    setDateDraft({
+      endDate: toDateInputValue(run.endDate),
+      startDate: toDateInputValue(run.startDate),
+    });
+    setDateError(null);
+  }, [run]);
+
+  useEffect(() => {
     if (!run || run.status !== "running" || isStepping) return;
     if (new Date(run.simulationTime).getTime() >= new Date(run.endDate).getTime()) {
       return;
@@ -848,12 +867,35 @@ export default function FullAutoControlRoom() {
     return () => window.clearTimeout(timer);
   }, [dispatch, isStepping, run]);
 
-  const resetRun = async () => {
-    if (isStepping) return;
+  const validateDateWindow = () => {
+    if (!dateDraft.startDate || !dateDraft.endDate) {
+      return "Choose both a start and end date.";
+    }
+    if (dateDraft.startDate < minReplayDate) {
+      return `Start date cannot be before ${fmtDate(replayBounds.minStartDate)}.`;
+    }
+    if (dateDraft.endDate > maxReplayDate) {
+      return `End date cannot be after ${fmtDate(replayBounds.maxEndDate)}.`;
+    }
+    if (dateDraft.startDate > dateDraft.endDate) {
+      return "Start date must be on or before the end date.";
+    }
+    return null;
+  };
+
+  const resetRun = async (dateWindow?: { startDate?: string; endDate?: string }) => {
+    if (!run || isStepping) return;
     setIsStepping(true);
     try {
       const response = await fetch("/api/full-auto/run/reset", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          dateWindow ?? {
+            endDate: run.endDate,
+            startDate: run.startDate,
+          },
+        ),
       });
       const payload = (await response.json()) as {
         success?: boolean;
@@ -864,12 +906,32 @@ export default function FullAutoControlRoom() {
       }
       upsertFullAutoRun(payload.run);
       setRun(payload.run);
+      setDateError(null);
     } catch {
-      const fallbackRun = resetFullAutoRuns();
+      const fallbackRun = resetFullAutoRuns(
+        dateWindow ?? {
+          endDate: run.endDate,
+          startDate: run.startDate,
+        },
+      );
       setRun(fallbackRun);
+      setDateError(null);
     } finally {
       setIsStepping(false);
     }
+  };
+
+  const applyDateWindow = async () => {
+    if (!run) return;
+    const error = validateDateWindow();
+    if (error) {
+      setDateError(error);
+      return;
+    }
+    await resetRun({
+      endDate: dateDraft.endDate,
+      startDate: dateDraft.startDate,
+    });
   };
 
   const openThesis = async (record: ThesisRecord) => {
@@ -929,32 +991,97 @@ export default function FullAutoControlRoom() {
               Timestamped replay pack. Paper positions only. Not live execution or an audited backtest.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={resetRun}
-              disabled={isStepping}
-              className="rounded-md border border-[#d9e0e8] bg-white px-3 py-2 text-sm font-semibold text-[#0a2259] shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
-            >
-              Refresh
-            </button>
-            {(["start", "pause", "step_day", "step_event", "fast_forward"] as const).map(
-              (command) => (
+          <div className="flex max-w-2xl flex-col items-start gap-3 lg:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => resetRun()}
+                disabled={isStepping}
+                className="rounded-md border border-[#d9e0e8] bg-white px-3 py-2 text-sm font-semibold text-[#0a2259] shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300"
+              >
+                Refresh
+              </button>
+              {(["start", "pause", "step_day", "step_event", "fast_forward"] as const).map(
+                (command) => {
+                  const disabled =
+                    isStepping ||
+                    (command === "pause" && run.status !== "running") ||
+                    (run.status === "complete" && command !== "pause");
+                  return (
+                    <button
+                      key={command}
+                      type="button"
+                      onClick={() => dispatch(command)}
+                      disabled={disabled}
+                      className={cn(
+                        "rounded-md border border-[#d9e0e8] bg-white px-3 py-2 text-sm font-semibold text-[#0a2259] shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300",
+                        command === "start" &&
+                          "border-[#0a2259] bg-white text-black hover:bg-slate-50",
+                      )}
+                    >
+                      {isStepping && command !== "pause" ? "Working" : commandLabel[command]}
+                    </button>
+                  );
+                },
+              )}
+            </div>
+            <div className="w-full border border-[#d9e0e8] bg-white p-3 shadow-sm">
+              <div className="flex flex-wrap items-end gap-2">
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    Start
+                  </label>
+                  <input
+                    type="date"
+                    min={minReplayDate}
+                    max={maxReplayDate}
+                    value={dateDraft.startDate}
+                    onChange={(event) =>
+                      setDateDraft((draft) => ({
+                        ...draft,
+                        startDate: event.target.value,
+                      }))
+                    }
+                    disabled={isStepping}
+                    className="mt-1 block h-9 rounded-md border border-[#d9e0e8] bg-white px-2 text-sm font-semibold text-[#0a2259] outline-none focus:border-[#0a2259] disabled:text-slate-300"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    End
+                  </label>
+                  <input
+                    type="date"
+                    min={minReplayDate}
+                    max={maxReplayDate}
+                    value={dateDraft.endDate}
+                    onChange={(event) =>
+                      setDateDraft((draft) => ({
+                        ...draft,
+                        endDate: event.target.value,
+                      }))
+                    }
+                    disabled={isStepping}
+                    className="mt-1 block h-9 rounded-md border border-[#d9e0e8] bg-white px-2 text-sm font-semibold text-[#0a2259] outline-none focus:border-[#0a2259] disabled:text-slate-300"
+                  />
+                </div>
                 <button
-                  key={command}
                   type="button"
-                  onClick={() => dispatch(command)}
-                  disabled={isStepping || (command === "pause" && run.status !== "running")}
-                  className={cn(
-                    "rounded-md border border-[#d9e0e8] bg-white px-3 py-2 text-sm font-semibold text-[#0a2259] shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300",
-                    command === "start" &&
-                      "border-[#0a2259] bg-white text-black hover:bg-slate-50",
-                  )}
+                  onClick={applyDateWindow}
+                  disabled={isStepping}
+                  className="h-9 rounded-md border border-[#0a2259] bg-[#0a2259] px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#071a45] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-300"
                 >
-                  {isStepping && command !== "pause" ? "Working" : commandLabel[command]}
+                  Set Window
                 </button>
-              ),
-            )}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Replay range: {fmtDate(replayBounds.minStartDate)} to{" "}
+                {fmtDate(replayBounds.maxEndDate)}. Future dates are blocked.
+              </p>
+              {dateError ? (
+                <p className="mt-1 text-xs font-semibold text-red-600">{dateError}</p>
+              ) : null}
+            </div>
           </div>
         </header>
 

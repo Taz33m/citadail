@@ -120,4 +120,22 @@ describe("Full Auto API routes", () => {
     expect(resetPayload.run?.status).toBe("idle");
     expect(resetPayload.run?.thesisRecords).toHaveLength(0);
   });
+
+  it("resets the shared Full Auto run with a custom replay window", async () => {
+    const resetResponse = await runResetPost(
+      request({
+        endDate: "2022-03-01",
+        startDate: "2020-01-02",
+      }) as never,
+    );
+    const resetPayload = (await resetResponse.json()) as {
+      success: boolean;
+      run?: ReturnType<typeof createFullAutoRun>;
+    };
+
+    expect(resetPayload.success).toBe(true);
+    expect(resetPayload.run?.startDate).toBe("2020-01-02T14:30:00.000Z");
+    expect(resetPayload.run?.endDate).toBe("2022-03-01T20:00:00.000Z");
+    expect(resetPayload.run?.simulationTime).toBe(resetPayload.run?.startDate);
+  });
 });

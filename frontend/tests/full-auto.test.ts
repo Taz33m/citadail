@@ -9,6 +9,7 @@ import {
 import {
   createFullAutoRun,
   createPaperPositionFromRiskDecision,
+  getFullAutoReplayBounds,
   riskDecisionForThesis,
   runPriorWindowValidation,
   stepFullAutoRun,
@@ -207,6 +208,47 @@ describe("Full Auto historical replay", () => {
     expect(next.thesisRecords[0]?.validation).toBeTruthy();
     expect(next.paperPositions.length).toBeGreaterThan(0);
     expect(next.thesisRecords[0]?.paperPositionId).toBe(next.paperPositions[0]?.id);
+  });
+
+  it("supports bounded custom replay windows without future dates", async () => {
+    const bounds = getFullAutoReplayBounds();
+    const run = createFullAutoRun({
+      endDate: "2022-02-15",
+      startDate: "2020-01-02",
+    });
+
+    expect(run.startDate).toBe("2020-01-02T14:30:00.000Z");
+    expect(run.endDate).toBe("2022-02-15T20:00:00.000Z");
+    expect(new Date(run.startDate).getTime()).toBeGreaterThanOrEqual(
+      new Date(bounds.minStartDate).getTime(),
+    );
+    expect(new Date(run.endDate).getTime()).toBeLessThanOrEqual(
+      new Date(bounds.maxEndDate).getTime(),
+    );
+
+    const clamped = createFullAutoRun({
+      endDate: "2099-01-01",
+      startDate: "2019-01-01",
+    });
+    expect(new Date(clamped.startDate).getTime()).toBe(
+      new Date(bounds.minStartDate).getTime(),
+    );
+    expect(new Date(clamped.endDate).getTime()).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("does not step beyond a configured replay end date", async () => {
+    let run = createFullAutoRun({
+      endDate: "2022-01-03",
+      startDate: "2022-01-01",
+    });
+
+    run = await stepFullAutoRun({ command: "start", run });
+    run = await stepFullAutoRun({ command: "fast_forward", run });
+
+    expect(run.status).toBe("complete");
+    expect(new Date(run.simulationTime).getTime()).toBeLessThanOrEqual(
+      new Date(run.endDate).getTime(),
+    );
   });
 
   it("orders Validation Agent between PM Synth and Risk Gate", async () => {

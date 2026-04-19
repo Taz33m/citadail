@@ -567,6 +567,13 @@ export const historicalSources: HistoricalSource[] = [
   ...expansionReplayPack,
 ].sort((left, right) => left.knownAt.localeCompare(right.knownAt));
 
+export const FULL_AUTO_REPLAY_MIN_DATE =
+  historicalSources[0]?.knownAt ?? "2020-01-02T14:30:00.000Z";
+
+export const FULL_AUTO_REPLAY_MAX_DATE =
+  historicalSources[historicalSources.length - 1]?.knownAt ??
+  "2026-04-17T20:00:00.000Z";
+
 const toTime = (value: string) => new Date(value).getTime();
 
 export const companyForTicker = (ticker: string) =>

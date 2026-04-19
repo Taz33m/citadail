@@ -1,6 +1,7 @@
 import { runAgent } from "@/lib/full-auto-agent-runtime";
 import {
   FULL_AUTO_DEFAULT_UNIVERSE,
+  FULL_AUTO_REPLAY_MIN_DATE,
   addSimulationDay,
   companyForTicker,
   getLatestPriceSnapshotAt,
@@ -39,6 +40,58 @@ const getReplayEndDate = () => {
   return new Date(Math.min(configuredEnd, now)).toISOString();
 };
 
+const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const toReplayIso = (
+  value: string | null | undefined,
+  time: "start" | "end",
+) => {
+  if (!value) return null;
+  const normalized = isDateOnly(value)
+    ? `${value}T${time === "start" ? "14:30:00.000Z" : "20:00:00.000Z"}`
+    : value;
+  const parsed = new Date(normalized).getTime();
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+};
+
+const clampTimestamp = (value: string, min: string, max: string) => {
+  const parsed = new Date(value).getTime();
+  const minMs = new Date(min).getTime();
+  const maxMs = new Date(max).getTime();
+  if (!Number.isFinite(parsed)) return min;
+  return new Date(Math.min(Math.max(parsed, minMs), maxMs)).toISOString();
+};
+
+export const getFullAutoReplayBounds = () => ({
+  minStartDate: FULL_AUTO_REPLAY_MIN_DATE,
+  maxEndDate: getReplayEndDate(),
+});
+
+export const normalizeFullAutoDateWindow = ({
+  endDate,
+  startDate,
+}: {
+  startDate?: string | null;
+  endDate?: string | null;
+} = {}) => {
+  const { maxEndDate, minStartDate } = getFullAutoReplayBounds();
+  const normalizedStart = clampTimestamp(
+    toReplayIso(startDate, "start") ?? FULL_AUTO_START_DATE,
+    minStartDate,
+    maxEndDate,
+  );
+  const normalizedEnd = clampTimestamp(
+    toReplayIso(endDate, "end") ?? maxEndDate,
+    normalizedStart,
+    maxEndDate,
+  );
+
+  return {
+    startDate: normalizedStart,
+    endDate: normalizedEnd,
+  };
+};
+
 const clampToReplayEnd = (value: string, run: FullAutoRun) => {
   const requested = new Date(value).getTime();
   const configuredEnd = new Date(run.endDate).getTime();
@@ -46,6 +99,23 @@ const clampToReplayEnd = (value: string, run: FullAutoRun) => {
   if (!Number.isFinite(requested)) return new Date(hardEnd).toISOString();
   return new Date(Math.min(requested, hardEnd)).toISOString();
 };
+
+const withNormalizedRunWindow = (run: FullAutoRun): FullAutoRun => {
+  const { endDate, startDate } = normalizeFullAutoDateWindow({
+    endDate: run.endDate,
+    startDate: run.startDate,
+  });
+  return {
+    ...run,
+    startDate,
+    endDate,
+    simulationTime: clampTimestamp(run.simulationTime, startDate, endDate),
+  };
+};
+
+const hasReachedReplayEnd = (run: FullAutoRun) =>
+  new Date(run.simulationTime).getTime() >=
+  Math.min(new Date(run.endDate).getTime(), Date.now());
 
 const uid = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -153,7 +223,9 @@ const targetGrossPctFor = (run: FullAutoRun) =>
   run.riskLimits.targetGrossExposurePct ??
   Math.min(70, run.riskLimits.maxGrossExposurePct);
 
-const buildInitialPortfolio = (): FullAutoPortfolio => ({
+const buildInitialPortfolio = (
+  startDate = FULL_AUTO_START_DATE,
+): FullAutoPortfolio => ({
   startingCapital: STARTING_CAPITAL,
   cash: STARTING_CAPITAL,
   netLiquidationValue: STARTING_CAPITAL,
@@ -165,8 +237,8 @@ const buildInitialPortfolio = (): FullAutoPortfolio => ({
   closedPositionCount: 0,
   equityCurve: [
     {
-      date: FULL_AUTO_START_DATE,
-      label: "Jan 1, 2022",
+      date: startDate,
+      label: formatCurveLabel(startDate),
       value: STARTING_CAPITAL,
       cash: STARTING_CAPITAL,
       grossExposure: 0,
@@ -256,16 +328,22 @@ export const recalcPortfolio = ({
   };
 };
 
-export const createFullAutoRun = (): FullAutoRun => {
+export const createFullAutoRun = (
+  dateWindow: {
+    startDate?: string | null;
+    endDate?: string | null;
+  } = {},
+): FullAutoRun => {
   const now = new Date().toISOString();
+  const { endDate, startDate } = normalizeFullAutoDateWindow(dateWindow);
   return {
     id: uid("full-auto-run"),
     status: "idle",
     createdAt: now,
     updatedAt: now,
-    startDate: FULL_AUTO_START_DATE,
-    endDate: getReplayEndDate(),
-    simulationTime: FULL_AUTO_START_DATE,
+    startDate,
+    endDate,
+    simulationTime: startDate,
     universe: [...FULL_AUTO_DEFAULT_UNIVERSE],
     strategyProfile: "Medium-horizon quality/event replay",
     riskLimits: {
@@ -275,7 +353,7 @@ export const createFullAutoRun = (): FullAutoRun => {
       maxOpenPositions: 10,
       cooldownDays: 14,
     },
-    portfolio: buildInitialPortfolio(),
+    portfolio: buildInitialPortfolio(startDate),
     thesisRegistry: buildThesisRegistry([]),
     currentBrief: null,
     candidateQueue: [],
@@ -1313,16 +1391,29 @@ export const stepFullAutoRun = async ({
   command: FullAutoStepCommand;
   run: FullAutoRun;
 }): Promise<FullAutoRun> => {
+  const normalizedRun = withNormalizedRunWindow(run);
+
   if (command === "pause") {
     return {
-      ...run,
+      ...normalizedRun,
       status: "paused",
       updatedAt: new Date().toISOString(),
     };
   }
 
+  if (hasReachedReplayEnd(normalizedRun) && normalizedRun.status !== "idle") {
+    return {
+      ...normalizedRun,
+      status: "complete",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   if (command === "fast_forward") {
-    let next = run.status === "idle" ? { ...run, status: "running" as const } : run;
+    let next =
+      normalizedRun.status === "idle"
+        ? { ...normalizedRun, status: "running" as const }
+        : normalizedRun;
     for (let index = 0; index < 5 && next.status !== "complete"; index += 1) {
       const nextEventDate = clampToReplayEnd(
         getNextKnownEventDate({
@@ -1336,10 +1427,10 @@ export const stepFullAutoRun = async ({
     return next;
   }
 
-  const simulationTime = nextTimeFor(run, command);
+  const simulationTime = nextTimeFor(normalizedRun, command);
   return runSingleStep(
     {
-      ...run,
+      ...normalizedRun,
       status: "running",
       error: null,
     },

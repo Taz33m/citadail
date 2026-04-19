@@ -154,8 +154,14 @@ export const persistSpectrumFullAutoRun = async (run: FullAutoRun) => {
   return run;
 };
 
-export const resetSpectrumDeskState = async () => {
-  const next = createInitialState();
+export const resetSpectrumDeskState = async (dateWindow?: {
+  startDate?: string | null;
+  endDate?: string | null;
+}) => {
+  const next = {
+    ...createInitialState(),
+    activeRun: createFullAutoRun(dateWindow),
+  };
   await saveSpectrumDeskState(next);
   return next;
 };
