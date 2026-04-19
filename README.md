@@ -8,24 +8,155 @@ The product is intentionally not a retail investing assistant, not a live broker
 
 ```mermaid
 flowchart TB
-  PM["PM / Analyst"] --> UI["Citadail Workbench<br/>Next.js + React"]
-  UI --> Assist["Assist Mode<br/>Thesis to analyst package"]
-  UI --> Auto["Full Auto<br/>Walk-forward paper desk"]
-  UI --> Chat["Sidebar AI<br/>screen-aware desk copilot"]
+  subgraph Surfaces["User Surfaces"]
+    Landing["Landing Page"]
+    Workbench["Assist Workbench"]
+    FullAutoUI["Full Auto Control Room"]
+    Sidebar["Screen-Aware Sidebar Chat"]
+    IMessage["Photon Spectrum / iMessage"]
+  end
 
-  Assist --> Office["Office Artifacts<br/>DOCX / XLSX / PPTX"]
-  Auto --> Agents["Agent Pipeline<br/>Brief / Analyst Swarm / PM / Risk / Desk / Monitor"]
-  Agents --> Book["Paper Book<br/>positions, P&L, audit journal"]
+  subgraph NextApp["Next.js App Runtime"]
+    AppRouter["App Router + React UI"]
+    ApiRoutes["Server API Routes"]
+    SessionState["Session State + Local Runtime Store"]
+    Tabs["Artifact Tab System"]
+  end
 
-  Sources["Replay + Market Sources<br/>filings, fundamentals, news, prices"] --> Assist
-  Sources --> Auto
+  subgraph ApiSurface["Citadail API Surface"]
+    MarketBriefApi["GET /api/market/brief"]
+    VoiceTokenApi["GET /api/voice/token"]
+    DeskChatApi["POST /api/desk/chat"]
+    ProjectGenerateApi["POST /api/equity/project/generate"]
+    ProjectPreviewApi["POST /api/equity/project/preview"]
+    ProjectExportApi["POST /api/equity/project/export"]
+    FullAutoRunApi["GET /api/full-auto/run"]
+    FullAutoResetApi["POST /api/full-auto/run/reset"]
+    FullAutoStepApi["POST /api/full-auto/step"]
+    FullAutoSessionApi["POST /api/full-auto/open-session"]
+    DedalusGetApi["GET /api/dedalus/runtime"]
+    DedalusPostApi["POST /api/dedalus/runtime"]
+  end
 
-  Gemini["Gemini<br/>generation + voice/text runtime"] --> Assist
-  Gemini --> Chat
-  Spectrum["Photon Spectrum<br/>iMessage command layer"] --> Auto
-  Spectrum --> Book
-  Dedalus["Dedalus<br/>machine-backed runtime"] --> OpenClaw["OpenClaw-compatible<br/>step proof"]
-  OpenClaw --> Auto
+  subgraph EquityCore["Equity Desk Core"]
+    ThesisRecord["ThesisRecord"]
+    ProjectGen["Equity Project Generator"]
+    FullAuto["Walk-Forward Full Auto Engine"]
+    RiskDesk["PM Review / Risk Gate / Trade Desk"]
+    LiveBook["Live Book + Paper Portfolio"]
+    SpectrumHandlers["Spectrum Command Handlers"]
+  end
+
+  subgraph Agents["Agent + Model Layer"]
+    Gemini["Google Gemini API<br/>generation, sidebar, search grounding"]
+    GeminiLive["Gemini Live<br/>voice/text token flow"]
+    OpenClaw["OpenClaw-Compatible Step Runtime"]
+    AgentPipeline["Brief / Candidate / Analyst Swarm / PM / Risk / Desk / Monitor"]
+  end
+
+  subgraph ExternalApis["External APIs + Sponsor Services"]
+    SEC["SEC data.sec.gov<br/>company facts + filing context"]
+    Perplexity["Perplexity API<br/>ticker news + source enrichment"]
+    Finnhub["Finnhub API<br/>market news when configured"]
+    Photon["Photon Spectrum<br/>iMessage provider"]
+    DedalusApi["Dedalus API + DCS<br/>machine runtime control"]
+    ModelProvider["Optional model provider env<br/>OpenAI-compatible routing"]
+  end
+
+  subgraph DataArtifacts["Data + Artifacts"]
+    Replay["Curated Replay Sources"]
+    Market["Market / Filing / News Context"]
+    Office["DOCX / XLSX / PPTX Exporters"]
+    Audit["Audit Journal + Execution Proof"]
+    PaperOnly["Paper-Only Position State<br/>no live brokerage execution"]
+  end
+
+  subgraph Storage["Persistence"]
+    BrowserStorage["Browser Local Storage<br/>session cache"]
+    RuntimeFiles["File-Backed Runtime Store<br/>.citadail runtime state"]
+    DedalusState["Dedalus Machine State<br/>run + proof JSON"]
+  end
+
+  subgraph Infra["Infrastructure + Delivery"]
+    Dedalus["Dedalus Machine Runtime"]
+    GitHubActions["GitHub Actions"]
+    GitHub["GitHub Repo + Pages Preview"]
+  end
+
+  Landing --> Workbench
+  Landing --> FullAutoUI
+  Workbench --> AppRouter
+  FullAutoUI --> AppRouter
+  Sidebar --> ApiRoutes
+  IMessage --> ApiRoutes
+
+  AppRouter --> Tabs
+  AppRouter --> SessionState
+  ApiRoutes --> MarketBriefApi
+  ApiRoutes --> VoiceTokenApi
+  ApiRoutes --> DeskChatApi
+  ApiRoutes --> ProjectGenerateApi
+  ApiRoutes --> ProjectPreviewApi
+  ApiRoutes --> ProjectExportApi
+  ApiRoutes --> FullAutoRunApi
+  ApiRoutes --> FullAutoResetApi
+  ApiRoutes --> FullAutoStepApi
+  ApiRoutes --> FullAutoSessionApi
+  ApiRoutes --> DedalusGetApi
+  ApiRoutes --> DedalusPostApi
+
+  MarketBriefApi --> Market
+  VoiceTokenApi --> GeminiLive
+  DeskChatApi --> Gemini
+  DeskChatApi --> SessionState
+  ProjectGenerateApi --> ProjectGen
+  ProjectPreviewApi --> Office
+  ProjectExportApi --> Office
+  FullAutoRunApi --> FullAuto
+  FullAutoResetApi --> FullAuto
+  FullAutoStepApi --> FullAuto
+  FullAutoSessionApi --> ThesisRecord
+  DedalusGetApi --> DedalusApi
+  DedalusPostApi --> DedalusApi
+
+  ProjectGen --> ThesisRecord
+  FullAuto --> ThesisRecord
+  ThesisRecord --> RiskDesk
+  RiskDesk --> LiveBook
+  LiveBook --> PaperOnly
+  SpectrumHandlers --> FullAuto
+  SpectrumHandlers --> LiveBook
+  SpectrumHandlers --> ProjectGen
+
+  Gemini --> ProjectGen
+  Gemini --> Sidebar
+  Gemini --> Market
+  AgentPipeline --> FullAuto
+  OpenClaw --> FullAuto
+  Dedalus --> OpenClaw
+
+  SEC --> Market
+  Perplexity --> Market
+  Finnhub --> Market
+  Photon --> IMessage
+  DedalusApi --> Dedalus
+  ModelProvider --> DedalusApi
+
+  Replay --> FullAuto
+  Market --> ProjectGen
+  Market --> AgentPipeline
+  ProjectGen --> Office
+  FullAuto --> Audit
+  LiveBook --> Audit
+  OpenClaw --> Audit
+
+  SessionState --> BrowserStorage
+  FullAuto --> RuntimeFiles
+  SpectrumHandlers --> RuntimeFiles
+  Dedalus --> DedalusState
+
+  GitHubActions --> GitHub
+  GitHub --> Landing
 ```
 
 ## Core Loop
