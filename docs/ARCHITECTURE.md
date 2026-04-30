@@ -106,4 +106,4 @@ The remote command vocabulary is intentionally narrow: `start`, `step`, and `pau
 
 ## Deployment Notes
 
-The root `package.json` delegates build/start/dev/lint scripts into `frontend`. GitHub Pages currently deploys the static `pages-site` folder through `.github/workflows/pages.yml`.
+The root `package.json` delegates build/start/dev/lint scripts into `frontend`. There is no GitHub Pages or GitHub Actions deployment configured in this repository.
