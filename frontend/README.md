@@ -17,6 +17,7 @@ Create `.env.local` when using Gemini-backed generation or source import:
 
 ```bash
 GEMINI_API_KEY=your_key_here
+SEC_USER_AGENT="Citadail research you@example.com"
 PERPLEXITY_API_KEY=your_key_here
 PHOTON_PROJECT_ID=your_project_id_here
 PHOTON_PROJECT_SECRET=your_project_secret_here
@@ -31,6 +32,7 @@ DEDALUS_MACHINE_AUTOCREATE=false
 ```
 
 Without a Gemini key, shell UI and deterministic local previews can still be exercised, but AI-backed package generation will fail instead of silently faking output.
+Use `SEC_USER_AGENT` to identify your app/contact for SEC EDGAR requests.
 The Perplexity key is server-only and reserved for source import/enrichment; historical replay uses stored snapshots.
 Photon credentials are server/local-agent only. Do not commit `.env.local`.
 Dedalus credentials are server-only. The Full Auto Dedalus card can create or attach a machine, bootstrap OpenClaw, sync the paper desk state, and report runtime status without exposing arbitrary shell execution to the browser.

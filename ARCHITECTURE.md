@@ -1,14 +1,11 @@
 # Citadail Architecture
 
-## OpenClaw Execution Path
+This file is a short pointer for repository visitors. The detailed architecture has moved to [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-Citadail can execute a bounded Full Auto replay step through a machine-backed OpenClaw runtime on Dedalus.
+Citadail is a Next.js equity research and paper-desk workspace with:
 
-- The browser calls `/api/full-auto/step` with an execution mode: `dedalus_openclaw`, `hybrid`, or `local`.
-- Machine-backed mode calls the safe Dedalus action `run_openclaw_step`.
-- The remote command vocabulary is frozen to `start`, `step`, and `pause`.
-- The Dedalus worker writes proof to `/home/machine/citadail/state/openclaw-proof.json`.
-- The web UI and Photon command layer read a sanitized proof copy from the local Dedalus runtime state.
-- Hybrid mode falls back to local execution if the machine runtime is unavailable.
+- a browser workbench for thesis creation, artifacts, PM/risk decisions, and paper positions;
+- local/server APIs for generation, Office export, Full Auto replay, and state persistence;
+- optional Spectrum and Dedalus/OpenClaw layers for command workflows and runtime proof.
 
-Paper positions only. No live trading or brokerage execution.
+Paper positions only. No brokerage integration, live order routing, or real capital movement.

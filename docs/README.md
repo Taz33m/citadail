@@ -1,23 +1,19 @@
 # Citadail Docs
 
-Citadail is an equity research and paper-desk workspace for thesis creation, analyst package generation, PM review, risk approval, and paper position monitoring.
+The README is the front door. These docs hold the deeper product, architecture, runtime, and safety details.
 
-Current docs should describe only the equity workflow, generated analyst artifacts, Gemini/ADK workspace, and paper-trade lifecycle.
+## Guides
 
-## Active Workflow
+- [Product](PRODUCT.md): product model, user journey, surfaces, and roadmap context.
+- [Architecture](ARCHITECTURE.md): app layers, major routes, state model, and data flow.
+- [Full Auto](FULL_AUTO.md): historical replay engine, paper book rules, and validation model.
+- [Spectrum](SPECTRUM.md): terminal/iMessage command layer and PM chat workflows.
+- [Dedalus/OpenClaw](DEDALUS_OPENCLAW.md): optional machine-backed runtime proof path.
+- [Safety](SAFETY.md): paper-only boundaries, replay discipline, secrets, and runtime controls.
+- [Artifacts](ARTIFACTS.md): DOCX, XLSX, and PPTX generation and preview/export flow.
 
-- Morning News
-- Coverage Desk
-- Thesis
-- Memo
-- Model
-- Deck
-- PM Review
-- Risk Gate
-- Trade Desk
-- Live Book
+## External Entry Points
 
-## Supporting Docs
-
-- [Repo overview](../README.md)
+- [Repo README](../README.md)
 - [Frontend developer guide](../frontend/README.md)
+- [Root architecture pointer](../ARCHITECTURE.md)

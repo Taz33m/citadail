@@ -142,6 +142,8 @@ const GEMINI_SEARCH_TIMEOUT_MS = Number(
 );
 const PREFER_CACHED_RESEARCH =
   process.env.EQUITY_PREFER_CACHED_RESEARCH?.toLowerCase() !== "false";
+const SEC_USER_AGENT =
+  process.env.SEC_USER_AGENT ?? "Citadail research contact@example.com";
 
 const withTimeout = async <T>(
   promise: Promise<T>,
@@ -301,7 +303,7 @@ const fetchJson = async <T>(url: string): Promise<T> => {
     cache: "no-store",
     headers: {
       accept: "application/json",
-      "user-agent": "Citadail research contact@example.com",
+      "user-agent": SEC_USER_AGENT,
     },
     signal: AbortSignal.timeout(6500),
   });
@@ -315,7 +317,7 @@ const fetchText = async (url: string): Promise<string> => {
     cache: "no-store",
     headers: {
       accept: "text/html,application/xhtml+xml,application/xml,text/plain",
-      "user-agent": "Citadail research contact@example.com",
+      "user-agent": SEC_USER_AGENT,
     },
     signal: AbortSignal.timeout(8000),
   });

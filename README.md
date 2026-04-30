@@ -1,360 +1,86 @@
 # Citadail
 
-Citadail is an AI-native equity research desk for building, reviewing, executing, and monitoring medium-horizon equity theses. It combines a research workbench, real analyst deliverables, a walk-forward paper-investing simulation, an iMessage command layer, and a machine-backed runtime proof surface.
+<p align="center">
+  <img src="frontend/public/logo.png" alt="Citadail logo" width="96" />
+</p>
 
-The product is intentionally not a retail investing assistant, not a live brokerage terminal, and not an autonomous live trader. Citadail is a paper-only research and desk operating system.
+<p align="center">
+  <strong>AI-native equity research and paper-desk workflow OS.</strong>
+</p>
 
-## Core Loop
+<p align="center">
+  <img alt="Status: experimental" src="https://img.shields.io/badge/status-experimental-orange" />
+  <img alt="Paper-only: no live trading" src="https://img.shields.io/badge/paper--only-no%20live%20trading-blue" />
+  <img alt="Built with Next.js" src="https://img.shields.io/badge/built%20with-Next.js-black" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-3178c6" />
+  <img alt="Vitest" src="https://img.shields.io/badge/tests-Vitest-6e9f18" />
+  <img alt="HackPrinceton '26 Orchids Winner" src="https://img.shields.io/badge/HackPrinceton%20%2726-Orchids%20Winner-8b5cf6" />
+  <img alt="Not financial advice" src="https://img.shields.io/badge/not-financial%20advice-red" />
+</p>
 
-1. Start in Assist Mode or Full Auto Mode.
-2. In Assist Mode, select a ticker, choose a recommendation, and submit a rationale.
-3. Generate the institutional package: memo, operating model, and PM pitch deck.
-4. Move the idea through PM Review, Risk Gate, Trade Desk, and Live Book.
-5. In Full Auto, run a historical walk-forward desk: morning brief, candidate selection, analyst agents, PM/risk checks, paper positions, monitoring, and journaled decisions.
+Citadail helps an analyst or PM move from market context to a source-backed thesis, real Office artifacts, PM review, risk approval, and paper-position monitoring. It is not just "chat with AI about stocks"; it is an end-to-end research workflow system for paper-portfolio experimentation.
 
-## Product Surfaces
+**Quick nav:** [Demo](#demo) · [Features](#core-features) · [Quick Start](#quick-start) · [Architecture](#architecture) · [Safety](#safety-boundaries) · [Docs](#docs)
 
-- **Landing**: mode selection, sponsor/runtime visual story, and entry into Assist or Full Auto.
-- **Morning News**: market context, sentiment, and headline screeners.
-- **Coverage Desk**: ticker search, current coverage, watchlist, and flagged names.
-- **Thesis**: recommendation capture and rationale submission.
-- **Memo**: generated investment memo preview and DOCX export.
-- **Model**: generated operating model preview and XLSX export.
-- **Deck**: generated PM pitch deck preview and PPTX export.
-- **PM Review**: compressed decision packet for capital approval.
-- **Risk Gate**: size, downside, and risk acceptance screen.
-- **Trade Desk**: single-position paper trade view.
-- **Live Book**: portfolio-level monitor for active theses and paper positions.
-- **Full Auto**: continuous walk-forward paper desk from 2022 onward.
-- **Spectrum Agent**: iMessage/terminal command layer for PM-style interaction.
+## Demo
 
-## Technical Architecture
+[![Citadail demo video](https://img.youtube.com/vi/pSyjZ7d7w5s/maxresdefault.jpg)](https://youtu.be/pSyjZ7d7w5s)
 
-Citadail is a Next.js application with three connected operating layers:
+[Watch the Citadail demo](https://youtu.be/pSyjZ7d7w5s)
 
-- **Workbench layer**: the browser UI where users inspect theses, artifacts, positions, and the book.
-- **Desk runtime layer**: local/server APIs that generate artifacts, step Full Auto, persist state, and enforce paper-only workflow rules.
-- **Ambient command layer**: Spectrum/iMessage commands that let a PM ask for the brief, book, runtime status, ticker news, or artifacts outside the web UI.
+The ideal demo flow:
+
+1. Market context in Morning News.
+2. Ticker selection and thesis capture.
+3. Memo, model, and deck generation.
+4. PM Review decision.
+5. Risk Gate approval.
+6. Paper trade and Live Book monitoring.
+7. Full Auto historical replay.
+
+## What Is Citadail?
+
+Citadail is an experimental equity research and paper-desk workspace. It combines a human-guided research workbench, generated analyst deliverables, a PM/risk workflow, a paper Trade Desk, a Live Book, a historical Full Auto replay engine, and optional command/runtime layers for Spectrum and Dedalus/OpenClaw.
+
+The product is designed around process discipline: every thesis needs evidence, assumptions, catalysts, risks, invalidation triggers, PM review, and risk review before it reaches the paper desk.
+
+## Core Workflow
 
 ```mermaid
 flowchart LR
-  User["User / PM"] --> Landing["Citadail Landing"]
-  Landing --> Assist["Assist Workbench"]
-  Landing --> Auto["Full Auto Control Room"]
-
-  Assist --> Thesis["Thesis Draft"]
-  Thesis --> Project["Equity Project"]
-  Project --> Memo["DOCX Memo"]
-  Project --> Model["XLSX Model"]
-  Project --> Deck["PPTX Deck"]
-  Project --> PM["PM Review"]
+  News["Morning News"] --> Coverage["Coverage Desk"]
+  Coverage --> Thesis["Thesis"]
+  Thesis --> Artifacts["Memo / Model / Deck"]
+  Artifacts --> PM["PM Review"]
   PM --> Risk["Risk Gate"]
-  Risk --> Desk["Trade Desk"]
+  Risk --> Desk["Paper Trade Desk"]
   Desk --> Book["Live Book"]
-
-  Auto --> Sources["Historical Replay Sources"]
-  Sources --> Agents["Agent Pipeline"]
-  Agents --> Records["Thesis Records"]
-  Records --> Positions["Paper Positions"]
-  Positions --> Journal["Audit Journal"]
-  Positions --> Book
-
-  Spectrum["Spectrum / iMessage"] --> Commands["Command Handlers"]
-  Commands --> Auto
-  Commands --> Project
-  Commands --> Book
-
-  Dedalus["Dedalus Runtime"] --> OpenClaw["OpenClaw Step Proof"]
-  OpenClaw --> Auto
 ```
 
-## Execution Modes
+## Core Features
 
-### Assist Mode
+- **Morning News**: market context, index snapshots, macro cues, headlines, and screeners.
+- **Coverage Desk**: ticker search, watchlist, current coverage, and flagged names.
+- **Thesis Builder**: recommendation and rationale capture for a selected company.
+- **Memo / Model / Deck exports**: real DOCX, XLSX, and PPTX analyst artifacts.
+- **PM Review**: decision packet for approving, sending back, or rejecting a thesis.
+- **Risk Gate**: paper-desk risk acceptance, sizing discipline, and risk status.
+- **Trade Desk**: paper-only open, add, trim, exit, and recheck actions.
+- **Live Book**: active paper book, thesis pipeline, attention items, and risk buckets.
+- **Full Auto historical replay**: walk-forward simulated desk using timestamped historical sources.
+- **Spectrum/iMessage command layer**: PM-style commands for brief, book, positions, artifacts, and runtime status.
+- **Dedalus/OpenClaw runtime proof path**: optional machine-backed Full Auto step execution with local fallback.
 
-Assist Mode is the human-guided workflow. The user chooses the ticker and recommendation, then Citadail builds the analyst package and moves the idea through the investment process.
+## Screenshots
 
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant W as Workbench
-  participant G as Generation API
-  participant O as Office Exporters
-  participant S as Session State
-
-  U->>W: Set ticker and submit thesis rationale
-  W->>S: Persist thesis draft
-  W->>G: Generate equity project
-  G->>S: Store structured project content
-  S->>W: Open Memo / Model / Deck tabs
-  W->>O: Preview or download Office artifact
-  W->>S: PM Review, Risk Gate, Trade Desk decisions
-```
-
-Assist Mode centers on an `EquityProject`, which contains:
-
-- ticker
-- recommendation
-- rationale
-- project status
-- generated content
-- memo/model/deck artifact metadata
-- PM Review state
-- Risk Gate state
-- paper position state
-
-### Full Auto Mode
-
-Full Auto is a historical walk-forward paper desk. It starts from a fixed replay date, reads only data known at the current simulation time, and evolves a paper book through time.
-
-```mermaid
-flowchart TB
-  Clock["Simulation Time"] --> Visible["Visible Sources only<br/>knownAt <= simulationTime"]
-  Visible --> Brief["Morning Brief Agent"]
-  Brief --> Candidate["Candidate Agent"]
-  Candidate --> Swarm["Analyst Swarm<br/>Fundamental / News / Market Structure / Macro"]
-  Swarm --> PM["PM Synthesizer"]
-  PM --> Validation["Validation Agent<br/>prior-window only"]
-  Validation --> Risk["Risk Gate Agent"]
-  Risk --> Desk["Desk Agent"]
-  Desk --> Monitor["Monitor Agent"]
-  Monitor --> Journal["Journal Agent"]
-  Journal --> Book["Portfolio / Equity Curve / Audit Trail"]
-```
-
-Each Full Auto step is bounded. It advances one simulated day or event window, runs the agent chain, updates paper positions, marks thesis health, and writes an audit trail. The system does not call live search during replay. External source import is separate from replay execution.
-
-Full Auto persistent objects:
-
-- `FullAutoRun`: the simulation container.
-- `HistoricalSource`: timestamped replay source with `knownAt` filtering.
-- `ThesisRecord`: central investment object produced by the agent pipeline.
-- `FullAutoPaperPosition`: paper-only desk position linked to a thesis.
-- `FullAutoJournalEntry`: audit trail of every material decision.
-- `OpenClawExecutionProof`: proof that a replay step was executed through the machine-backed runtime or safely fell back locally.
-
-## Thesis Record
-
-Everything important converges into a `ThesisRecord`.
-
-```mermaid
-flowchart LR
-  Inputs["Filings / Fundamentals / News / Prices / Macro"] --> TR["Thesis Record"]
-  TR --> Rec["Recommendation"]
-  TR --> Conviction["Conviction"]
-  TR --> Evidence["Evidence"]
-  TR --> Assumptions["Assumptions"]
-  TR --> Catalysts["Catalysts"]
-  TR --> Risks["Risks"]
-  TR --> Invalidation["Invalidation Triggers"]
-  TR --> PM["PM Decision"]
-  TR --> Risk["Risk Decision"]
-  TR --> Paper["Paper Position"]
-  TR --> Monitor["Monitoring State"]
-```
-
-A thesis is not complete unless it says what would break it. Falsification is treated as a first-class output, not an afterthought.
-
-## Office Artifact Generation
-
-Citadail generates real Office files, not fake text tabs:
-
-- `Investment Memo.docx`
-- `Operating Model.xlsx`
-- `PM Pitch Deck.pptx`
-
-Generation flow:
-
-1. `/api/equity/project/generate` creates structured analyst content from the submitted thesis and available company context.
-2. `/api/equity/project/preview` renders browser previews for memo/model/deck tabs.
-3. `/api/equity/project/export` emits binary Office files with the correct MIME type and attachment headers.
-
-Office libraries:
-
-- `docx` for memo export.
-- `exceljs` for operating model export.
-- `pptxgenjs` for PM deck export.
-
-The model is designed to show the numbers behind the story: revenue assumptions, margins, valuation output, sensitivity, comps, and risk triggers.
-
-## Spectrum / iMessage Layer
-
-Citadail includes a TypeScript Spectrum agent for PM group-chat workflows.
-
-Entry point:
-
-- `frontend/scripts/spectrum-agent.ts`
-
-Core modules:
-
-- `frontend/lib/citadail-spectrum-command.ts`
-- `frontend/lib/citadail-spectrum-handler.ts`
-- `frontend/lib/spectrum-desk-state.ts`
-- `frontend/lib/spectrum-desk-visuals.ts`
-
-The Spectrum layer supports PM-friendly commands such as:
-
-- `Citadail brief`
-- `Citadail book`
-- `Citadail positions`
-- `Citadail thesis NVDA`
-- `Citadail news AAPL`
-- `Citadail runtime`
-- `Citadail run machine step`
-- `Citadail deck NVDA`
-
-Group-chat safety:
-
-- In group chats, the agent responds only to prefixed commands such as `Citadail ...` or `cd ...`.
-- In direct messages, plain commands are accepted.
-- Duplicate message ids are ignored.
-- Trade language is always paper-only.
-
-## Dedalus + OpenClaw Runtime Proof
-
-Citadail uses Dedalus as a machine-backed persistence and execution proof layer. The local app remains reliable, but Full Auto can attempt a machine-backed OpenClaw-compatible replay step.
-
-Demo line:
-
-> Citadail executes Full Auto replay steps through a machine-backed OpenClaw runtime on Dedalus, persists the resulting desk state and proof, and safely falls back to local execution if the runtime is unavailable.
-
-Runtime modes:
-
-- **Machine-backed**: strict remote OpenClaw step through Dedalus.
-- **Hybrid fallback**: try Dedalus/OpenClaw first, then fall back to local step if unavailable.
-- **Local**: run the replay step entirely in the app runtime.
-
-Proof flow:
-
-```mermaid
-sequenceDiagram
-  participant UI as Full Auto UI
-  participant API as /api/full-auto/step
-  participant Runtime as Runtime Wrapper
-  participant D as Dedalus Adapter
-  participant Local as Local Orchestrator
-  participant Proof as Proof Store
-
-  UI->>API: step command + run state
-  API->>Runtime: runFullAutoStepWithRuntime()
-  Runtime->>D: run_openclaw_step
-  alt Dedalus/OpenClaw succeeds
-    D-->>Runtime: next run + remote_success proof
-  else remote unavailable
-    Runtime->>Local: local step
-    Local-->>Runtime: next run
-    Runtime->>Proof: record local_fallback proof
-  end
-  Runtime-->>API: validated run + proof
-  API-->>UI: updated desk state
-```
-
-Proof surfaces:
-
-- Full Auto signal toast: `Executed by OpenClaw on Dedalus`.
-- Runtime status command in Spectrum.
-- Latest proof history stored locally for UI and command responses.
-- Machine state sync path on Dedalus: `/home/machine/citadail/state/`.
-
-The browser never receives Dedalus secrets and never exposes arbitrary shell execution.
-
-## API Surface
-
-| Route | Purpose |
+| Surface | Slot |
 | --- | --- |
-| `GET /api/market/brief` | Morning News data surface. |
-| `POST /api/equity/project/generate` | Generate structured analyst project content. |
-| `POST /api/equity/project/preview` | Render artifact previews for the workbench. |
-| `POST /api/equity/project/export` | Export DOCX/XLSX/PPTX files. |
-| `GET /api/full-auto/run` | Read shared Full Auto run state. |
-| `POST /api/full-auto/run/reset` | Reset the Full Auto demo state. |
-| `POST /api/full-auto/step` | Advance one bounded Full Auto step. |
-| `POST /api/full-auto/open-session` | Bridge a Full Auto thesis into the normal workbench. |
-| `GET /api/dedalus/runtime` | Read sanitized Dedalus/OpenClaw runtime status. |
-| `POST /api/dedalus/runtime` | Run allowlisted runtime actions only. |
-| `POST /api/desk/chat` | Sidebar AI chat with screen/context snapshot tools. |
-| `GET /api/voice/token` | Gemini Live voice/text token route. |
-
-## State And Persistence
-
-Citadail uses a deliberately simple persistence model for the hackathon build:
-
-- Browser/session state for the workbench and local UI cache.
-- File-backed runtime state for Spectrum and shared Full Auto state.
-- Optional Dedalus machine-backed state sync for runtime proof.
-
-Important runtime files are ignored and should not be committed:
-
-- `frontend/.env.local`
-- `frontend/.citadail/runtime/*.json`
-- `.next/`
-- `node_modules/`
-
-## Safety Boundaries
-
-Citadail is built around explicit guardrails:
-
-- Paper positions only.
-- No brokerage connection.
-- No live execution claims.
-- No future-data access during historical replay.
-- Replay sources are filtered by `knownAt <= simulationTime`.
-- Perplexity is used only for import/enrichment, not inside the walk-forward replay loop.
-- Dedalus actions are allowlisted; no browser-exposed arbitrary command execution.
-- Spectrum group chat requires command prefixes to avoid noisy or accidental responses.
-
-## Repo Map
-
-```text
-frontend/
-  app/
-    page.tsx                         Landing
-    full-auto/page.tsx               Full Auto route
-    sessions/[id]/page.tsx           Assist workbench route
-    api/                             Server routes
-  components/
-    session-workspace.tsx            Main tabbed workbench
-    full-auto-control-room.tsx       Full Auto dashboard
-    coverage-desk.tsx                Coverage Desk
-    thesis-tab.tsx                   Thesis entry
-    equity-project-artifact-tab.tsx  Memo/model/deck previews
-    pm-review-tab.tsx                PM Review
-    risk-gate-tab.tsx                Risk Gate
-    trade-desk-tab.tsx               Single-position desk view
-    live-book-tab.tsx                Portfolio-level view
-    signal-toast-stack.tsx           Demo proof toasts
-  lib/
-    equity-project*.ts               Project generation and state
-    equity-office-*.ts               Office previews and exports
-    full-auto-*.ts                   Replay data, agents, orchestration, runtime
-    dedalus-runtime.ts               Machine-backed runtime adapter
-    citadail-spectrum-*.ts           Spectrum command parser/handler
-    session-*.ts                     Session storage, routing, update pipeline
-  tests/
-    *.test.ts(x)                     Vitest coverage for shell, Full Auto, exports, Spectrum, Dedalus
-```
-
-## Environment Variables
-
-Create `frontend/.env.local` for local development. Do not commit this file.
-
-```bash
-GEMINI_API_KEY=...
-OPENAI_API_KEY=...
-PERPLEXITY_API_KEY=...
-
-PHOTON_PROJECT_ID=...
-PHOTON_PROJECT_SECRET=...
-SPECTRUM_USE_TERMINAL=false
-CITADAIL_APP_URL=http://localhost:3000
-
-DEDALUS_API_KEY=...
-DEDALUS_DCS_BASE_URL=https://dcs.dedaluslabs.ai
-DEDALUS_API_BASE_URL=https://api.dedaluslabs.ai
-DEDALUS_MODEL=openai/gpt-5
-```
-
-Only server routes and local scripts read these secrets. Client code receives sanitized status and generated outputs only.
+| Landing / mode selection | Screenshot placeholder |
+| Assist Mode | Screenshot placeholder |
+| Artifact previews / exports | Screenshot placeholder |
+| PM / Risk workflow | Screenshot placeholder |
+| Full Auto | Screenshot placeholder |
+| Live Book | Screenshot placeholder |
 
 ## Quick Start
 
@@ -364,14 +90,27 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+The app runs at `http://localhost:3000`.
 
-Run the Spectrum agent locally:
+## Environment Variables
+
+Copy `.env.example` into `frontend/.env.local` for local development:
 
 ```bash
-cd frontend
-npm run spectrum:agent
+cp .env.example frontend/.env.local
 ```
+
+Common variables:
+
+- `GEMINI_API_KEY`: server-side Gemini key for AI-backed project generation and optional search grounding.
+- `SEC_USER_AGENT`: recommended SEC identity string for source collection workflows.
+- `DEDALUS_API_KEY`: optional server-side Dedalus key for machine-backed runtime proof.
+- `DEDALUS_MODEL`: optional model id for Dedalus/OpenClaw runtime metadata.
+- `PERPLEXITY_API_KEY`: optional source/news enrichment.
+- `PHOTON_PROJECT_ID` / `PHOTON_PROJECT_SECRET`: optional Spectrum/iMessage bridge credentials.
+- `SPECTRUM_USE_TERMINAL`: use terminal mode for local Spectrum testing.
+
+See [.env.example](.env.example) and [frontend/README.md](frontend/README.md) for the full environment surface.
 
 ## Verification
 
@@ -382,18 +121,59 @@ npm run test:shell
 npm run build
 ```
 
-The core regression suite covers:
+## Architecture
 
-- shell/session behavior
-- Coverage Desk
-- thesis submission
-- Office export smoke checks
-- Full Auto orchestration
-- Dedalus runtime fallback/proof behavior
-- Spectrum command parsing and responses
-- sidebar AI chat context handling
-- Gemini reconnect policy
+Citadail is a Next.js application with three connected layers:
 
-## Deployment Note
+- **Workbench layer**: browser UI for sessions, theses, artifacts, PM/risk decisions, paper positions, and the Live Book.
+- **Desk runtime layer**: API routes and local/server libraries for project generation, Office export, Full Auto replay, and paper-desk state.
+- **Ambient command/runtime layer**: Spectrum commands plus optional Dedalus/OpenClaw machine-backed replay proof.
 
-The complete Citadail app requires a server runtime because it uses API routes for Office exports, generation, Full Auto stepping, Spectrum state, and Dedalus status. A static GitHub Pages preview can show the landing page and product framing, but the full interactive desk should be deployed to a server-capable host.
+Detailed architecture, API routes, runtime diagrams, and data-flow notes live in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Safety Boundaries
+
+Citadail has explicit safety boundaries:
+
+- No brokerage integration.
+- No live order routing.
+- No real capital movement.
+- All positions are paper-only.
+- Historical replay avoids future-data access by filtering on `knownAt`.
+- Remote runtime commands are allowlisted.
+- Secrets stay on the server or local agent and are never intentionally sent to the browser client.
+
+Read the detailed safety model in [docs/SAFETY.md](docs/SAFETY.md).
+
+## Project Status / Roadmap
+
+Citadail is an experimental, hackathon-origin project suitable for local development, demos, research workflow exploration, and paper-portfolio simulations. It is not production financial software.
+
+Roadmap:
+
+- Portfolio-wide book.
+- Durable backend persistence.
+- Clearer source freshness labels.
+- Better artifact styling.
+- Full voice/Spectrum integration.
+- Hosted demo.
+- Contributor-friendly issues.
+
+## Docs
+
+- [Product](docs/PRODUCT.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Full Auto](docs/FULL_AUTO.md)
+- [Spectrum](docs/SPECTRUM.md)
+- [Dedalus/OpenClaw](docs/DEDALUS_OPENCLAW.md)
+- [Safety](docs/SAFETY.md)
+- [Artifacts](docs/ARTIFACTS.md)
+- [Frontend developer guide](frontend/README.md)
+
+## Contributing
+
+Contributions are welcome through focused issues and pull requests. Start with [CONTRIBUTING.md](CONTRIBUTING.md), follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and report security concerns through [SECURITY.md](SECURITY.md).
+
+## Disclaimer
+
+Citadail is for research, education, workflow simulation, and paper-portfolio experimentation only. It is not financial advice, investment advice, brokerage software, or a live trading system.
