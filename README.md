@@ -1,7 +1,7 @@
 # Citadail
 
 <p align="center">
-  <img src="frontend/public/logo.png" alt="Citadail logo" width="96" />
+  <img src="docs/assets/logo.png" alt="Citadail" width="180" />
 </p>
 
 <p align="center">
@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <img alt="Status: experimental" src="https://img.shields.io/badge/status-experimental-orange" />
-  <img alt="Paper-only: no live trading" src="https://img.shields.io/badge/paper--only-no%20live%20trading-blue" />
-  <img alt="Built with Next.js" src="https://img.shields.io/badge/built%20with-Next.js-black" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-3178c6" />
-  <img alt="Vitest" src="https://img.shields.io/badge/tests-Vitest-6e9f18" />
-  <img alt="HackPrinceton '26 Orchids Winner" src="https://img.shields.io/badge/HackPrinceton%20%2726-Orchids%20Winner-8b5cf6" />
-  <img alt="Not financial advice" src="https://img.shields.io/badge/not-financial%20advice-red" />
+  <img alt="Status: experimental" src="https://img.shields.io/badge/status-experimental-f97316" />
+  <img alt="Paper-only: no live trading" src="https://img.shields.io/badge/paper--only-no%20live%20trading-0a2259" />
+  <img alt="Next.js" src="https://img.shields.io/static/v1?label=&message=Next.js&color=000000" />
+  <img alt="TypeScript" src="https://img.shields.io/static/v1?label=&message=TypeScript&color=3178c6" />
+  <img alt="Vitest" src="https://img.shields.io/static/v1?label=&message=Vitest&color=6e9f18" />
+  <img alt="HackPrinceton '26 Orchids Winner" src="https://img.shields.io/badge/HackPrinceton%20%2726-Orchids-8b5cf6" />
+  <img alt="Not financial advice" src="https://img.shields.io/badge/not-financial%20advice-c6202d" />
 </p>
 
 Citadail helps an analyst or PM move from market context to a source-backed thesis, real Office artifacts, PM review, risk approval, and paper-position monitoring. It is not just "chat with AI about stocks"; it is an end-to-end research workflow system for paper-portfolio experimentation.
