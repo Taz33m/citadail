@@ -28,16 +28,6 @@ Citadail helps an analyst or PM move from market context to a source-backed thes
 
 [Watch the Citadail demo](https://youtu.be/pSyjZ7d7w5s)
 
-The ideal demo flow:
-
-1. Market context in Morning News.
-2. Ticker selection and thesis capture.
-3. Memo, model, and deck generation.
-4. PM Review decision.
-5. Risk Gate approval.
-6. Paper trade and Live Book monitoring.
-7. Full Auto historical replay.
-
 ## What Is Citadail?
 
 Citadail is an experimental equity research and paper-desk workspace. It combines a human-guided research workbench, generated analyst deliverables, a PM/risk workflow, a paper Trade Desk, a Live Book, a historical Full Auto replay engine, and optional command/runtime layers for Spectrum and Dedalus/OpenClaw.
@@ -70,17 +60,6 @@ flowchart LR
 - **Full Auto historical replay**: walk-forward simulated desk using timestamped historical sources.
 - **Spectrum/iMessage command layer**: PM-style commands for brief, book, positions, artifacts, and runtime status.
 - **Dedalus/OpenClaw runtime proof path**: optional machine-backed Full Auto step execution with local fallback.
-
-## Screenshots
-
-| Surface | Slot |
-| --- | --- |
-| Landing / mode selection | Screenshot placeholder |
-| Assist Mode | Screenshot placeholder |
-| Artifact previews / exports | Screenshot placeholder |
-| PM / Risk workflow | Screenshot placeholder |
-| Full Auto | Screenshot placeholder |
-| Live Book | Screenshot placeholder |
 
 ## Quick Start
 
